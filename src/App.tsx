@@ -1583,7 +1583,7 @@ export default function App() {
 
       {/* TELEGRAM MINI APP BOTTOM NAVIGATION DOCK */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800/90 py-1.5 px-3">
-        <div className="max-w-md mx-auto grid grid-cols-6 gap-1 text-center">
+        <div className="max-w-md mx-auto grid grid-cols-7 gap-1 text-center">
           
           {/* Tab 1: Tap */}
           <button
@@ -1671,6 +1671,26 @@ export default function App() {
           >
             <span className="text-xl">💾</span>
             <span className="text-[10px] mt-0.5">Save</span>
+          </button>
+
+          {/* Manual Save Import Button */}
+          <button
+            onClick={() => {
+              const imported = prompt("Введите код прогресса для импорта:");
+              if (imported) {
+                const newData = importSaveString(imported);
+                if (newData) {
+                  setSaveData(newData);
+                  alert("Прогресс успешно импортирован!");
+                } else {
+                  alert("Неверный код прогресса!");
+                }
+              }
+            }}
+            className="py-1 rounded-xl flex flex-col items-center justify-center text-zinc-500 hover:text-green-400"
+          >
+            <span className="text-xl">📥</span>
+            <span className="text-[10px] mt-0.5">Load</span>
           </button>
 
         </div>
