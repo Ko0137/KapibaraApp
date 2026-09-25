@@ -29,14 +29,8 @@ import { formatNumber, formatTimeSeconds } from './utils/format';
 import { sound } from './utils/audio';
 import { hapticEffects, isHapticsEnabled, setHapticsEnabled } from './utils/haptics';
 import { testFirestoreConnection } from './services/firebase';
-import {
-  loadGameLocally,
-  saveGameLocally,
-  saveGameToCloud,
-  exportSaveString,
-  importSaveString,
-} from './services/cloudSave';
-import { loadUserProgress, saveUserProgress } from './services/telegramFirestore';
+import { loadGameLocally, saveGameLocally, exportSaveString, importSaveString } from './services/cloudSave';
+import { saveToTelegramCloud, loadFromTelegramCloud } from './services/telegramCloud';
 
 import { MainTapper } from './components/MainTapper';
 import { UpgradesPanel } from './components/UpgradesPanel';
@@ -71,7 +65,7 @@ export default function App() {
     
     // Load
     const loadData = async () => {
-      const cloudData = await loadUserProgress();
+      const cloudData = await loadFromTelegramCloud();
       if (cloudData) {
         setSaveData(cloudData);
       }
@@ -96,7 +90,7 @@ export default function App() {
   // Background cloud sync
   useEffect(() => {
     const timer = setTimeout(() => {
-      saveUserProgress(saveData);
+      saveToTelegramCloud(saveData);
     }, 10000); // Increased delay to 10s
     return () => clearTimeout(timer);
   }, [saveData]);
