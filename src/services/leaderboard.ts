@@ -92,56 +92,5 @@ export async function fetchLeaderboard(
 }
 
 function getOfflineFallbackLeaderboard(): LeaderboardItem[] {
-  return [
-    {
-      userId: 'bot-1',
-      nickname: '🥟 Пельменный_Барон',
-      level: 165,
-      prestige: 12,
-      totalCoinsEarned: 8900000000000,
-      bossesDefeated: 16,
-      verifiedFair: true,
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      userId: 'bot-2',
-      nickname: '⚡ Тапер_2000',
-      level: 142,
-      prestige: 8,
-      totalCoinsEarned: 4500000000000,
-      bossesDefeated: 14,
-      verifiedFair: true,
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      userId: 'bot-3',
-      nickname: '🦫 Капибара_Дзен',
-      level: 110,
-      prestige: 5,
-      totalCoinsEarned: 1200000000000,
-      bossesDefeated: 11,
-      verifiedFair: true,
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      userId: 'bot-4',
-      nickname: '🐱 Кот_С_Лапкой',
-      level: 95,
-      prestige: 3,
-      totalCoinsEarned: 450000000000,
-      bossesDefeated: 9,
-      verifiedFair: true,
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      userId: 'bot-5',
-      nickname: '🚀 Крипто_Хомяк',
-      level: 78,
-      prestige: 2,
-      totalCoinsEarned: 95000000000,
-      bossesDefeated: 7,
-      verifiedFair: true,
-      updatedAt: new Date().toISOString(),
-    },
-  ];
+  return [];
 }

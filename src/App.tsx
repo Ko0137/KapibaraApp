@@ -92,7 +92,7 @@ export default function App() {
   useEffect(() => {
     const timer = setTimeout(() => {
       saveToTelegramCloud(saveData);
-    }, 10000); // Increased delay to 10s
+    }, 2500); // Save every 2.5 seconds
     return () => clearTimeout(timer);
   }, [saveData]);
 
