@@ -86,14 +86,16 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []); // Run once on mount
 
-  // Debounced save
+  // Local save on every change
   useEffect(() => {
-    // Force local save every time saveData changes
     saveGameLocally(saveData);
-    
+  }, [saveData]);
+
+  // Background cloud sync
+  useEffect(() => {
     const timer = setTimeout(() => {
       saveUserProgress(saveData);
-    }, 5000);
+    }, 10000); // Increased delay to 10s
     return () => clearTimeout(timer);
   }, [saveData]);
 
