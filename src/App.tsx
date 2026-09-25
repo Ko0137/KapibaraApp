@@ -88,6 +88,9 @@ export default function App() {
 
   // Debounced save
   useEffect(() => {
+    // Force local save every time saveData changes
+    saveGameLocally(saveData);
+    
     const timer = setTimeout(() => {
       saveUserProgress(saveData);
     }, 5000);
