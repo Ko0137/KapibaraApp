@@ -27,7 +27,13 @@ export const loadUserProgress = async (userId: string): Promise<GameSaveData | n
 export const saveUserProgress = async (userId: string, data: GameSaveData): Promise<void> => {
   try {
     const docRef = doc(db, 'users', userId);
-    await setDoc(docRef, { ...data, lastSavedTimestamp: Date.now() }, { merge: true });
+    
+    // Sanitize data: remove undefined values
+    const sanitizedData = Object.fromEntries(
+      Object.entries({ ...data, lastSavedTimestamp: Date.now() }).filter(([_, v]) => v !== undefined)
+    );
+    
+    await setDoc(docRef, sanitizedData, { merge: true });
   } catch (error) {
     console.error('Error saving progress to Firestore:', error);
   }
