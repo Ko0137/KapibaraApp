@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 64 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidLeaderboardEntry(data) {
+      let requiredKeys = ['userId', 'nickname', 'level', 'prestige', 'totalCoinsEarned', 'updatedAt'];
+      let allowedKeys = ['userId', 'nickname', 'level', 'prestige', 'totalCoinsEarned', 'bossesDefeated', 'verifiedFair', 'updatedAt'];
+
+      return data.keys().hasAll(requiredKeys) &&
+             data.keys().hasOnly(allowedKeys) &&
+             data.userId == request.auth.uid &&
+             data.nickname is string &&
+             data.nickname.size() >= 2 &&
+             data.nickname.size() <= 24 &&
+             data.level is number &&
+             data.level >= 1 &&
+             data.level <= 1000 &&
+             data.prestige is number &&
+             data.prestige >= 0 &&
+             data.totalCoinsEarned is number &&
+             data.totalCoinsEarned >= 0 &&
+             data.updatedAt is string &&
+             data.updatedAt.size() <= 40 &&
+             (!('bossesDefeated' in data) || (data.bossesDefeated is number && data.bossesDefeated >= 0)) &&
+             (!('verifiedFair' in data) || (data.verifiedFair is bool));
+    }
+
+    match /leaderboard/{userId} {
+      // Leaderboard is globally viewable by all players
+      allow read: if true;
+
+      // Only the authenticated user can create or update their own score
+      allow create, update: if isValidId(userId) &&
+                               isOwner(userId) &&
+                               isValidLeaderboardEntry(request.resource.data);
+
+      allow delete: if isValidId(userId) && isOwner(userId);
+    }
+  }
+}

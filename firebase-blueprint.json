@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Public leaderboard record representing player achievement and stats",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the player"
+        },
+        "nickname": {
+          "type": "string",
+          "description": "Display nickname of the player",
+          "minLength": 2,
+          "maxLength": 24
+        },
+        "level": {
+          "type": "number",
+          "description": "Current player level (1 to 200)"
+        },
+        "prestige": {
+          "type": "number",
+          "description": "Prestige reset count"
+        },
+        "totalCoinsEarned": {
+          "type": "number",
+          "description": "Cumulative coins earned by player"
+        },
+        "bossesDefeated": {
+          "type": "number",
+          "description": "Total number of bosses defeated"
+        },
+        "verifiedFair": {
+          "type": "boolean",
+          "description": "Anti-cheat verification flag"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp of last score submission"
+        }
+      },
+      "required": [
+        "userId",
+        "nickname",
+        "level",
+        "prestige",
+        "totalCoinsEarned",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/leaderboard/{userId}": {
+      "schema": "LeaderboardEntry",
+      "description": "Global competitive leaderboard records indexed by user ID"
+    }
+  }
+}

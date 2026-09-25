@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "MegaTap: 160 Уровней Хаоса",
+  "short_name": "MegaTap",
+  "description": "Безумно залипательный кликер с 160+ уровнями эволюции, битвами с боссами и облачным сохранением!",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#090d16",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "entertainment"]
+}

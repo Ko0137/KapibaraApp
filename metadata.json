@@ -1,0 +1,6 @@
+{
+  "name": "MegaTap: 160 Уровней Хаоса",
+  "description": "Безумно залипательный кликер с 160+ уровнями эволюции, битвами с боссами, облачным сохранением, эвентами и ежедневными наградами.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
