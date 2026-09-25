@@ -12,6 +12,7 @@ import { CharacterFighterVisual } from './CharacterFighterVisual';
 import { formatNumber } from '../utils/format';
 import { sound } from '../utils/audio';
 import { hapticEffects } from '../utils/haptics';
+import { getApiUrl, safeJsonParse } from '../utils/api';
 
 interface DealModalProps {
   onClose: () => void;
@@ -72,8 +73,8 @@ export const DealModal: React.FC<DealModalProps> = ({
     let isMounted = true;
     async function loadOpponents() {
       try {
-        const res = await fetch('/api/duel/real-players');
-        const data = await res.json();
+        const res = await fetch(getApiUrl('/api/duel/real-players'));
+        const data = await safeJsonParse(res);
         if (data.success && Array.isArray(data.opponents) && isMounted) {
           setRealPlayers(data.opponents);
           

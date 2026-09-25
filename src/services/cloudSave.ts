@@ -1,5 +1,6 @@
 import { GameSaveData } from '../types/game';
 import { INITIAL_DAILY_QUESTS } from '../data/upgrades';
+import { getApiUrl, safeJsonParse } from '../utils/api';
 
 const LOCAL_STORAGE_KEY = 'megatap_v1_savegame';
 
@@ -120,7 +121,7 @@ export function loadGameLocally(tgUserId?: string | number): GameSaveData {
 export async function saveGameToCloud(data: GameSaveData, customCloudId?: string): Promise<{ success: boolean; cloudId: string; message: string }> {
   try {
     const targetCloudId = customCloudId || data.cloudId;
-    const response = await fetch('/api/cloud/save', {
+    const response = await fetch(getApiUrl('/api/cloud/save'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -133,8 +134,8 @@ export async function saveGameToCloud(data: GameSaveData, customCloudId?: string
       })
     });
 
-    const result = await response.json();
-    if (!response.ok || !result.success) {
+    const result = await safeJsonParse(response);
+    if (!result.success) {
       throw new Error(result.error || 'Ошибка сохранения в облако');
     }
 
@@ -155,10 +156,10 @@ export async function saveGameToCloud(data: GameSaveData, customCloudId?: string
 export async function loadGameFromCloud(cloudId: string): Promise<{ success: boolean; saveData?: GameSaveData; error?: string }> {
   try {
     const cleanId = cloudId.trim().toUpperCase();
-    const response = await fetch(`/api/cloud/load/${encodeURIComponent(cleanId)}`);
-    const result = await response.json();
+    const response = await fetch(getApiUrl(`/api/cloud/load/${encodeURIComponent(cleanId)}`));
+    const result = await safeJsonParse(response);
 
-    if (!response.ok || !result.success) {
+    if (!result.success) {
       return {
         success: false,
         error: result.error || 'Облачное сохранение не найдено'
@@ -188,9 +189,9 @@ export async function loadGameFromCloud(cloudId: string): Promise<{ success: boo
 
 export async function fetchLeaderboard(): Promise<{ success: boolean; leaderboard: any[] }> {
   try {
-    const res = await fetch('/api/cloud/leaderboard');
-    const data = await res.json();
-    if (res.ok && data.success) {
+    const res = await fetch(getApiUrl('/api/cloud/leaderboard'));
+    const data = await safeJsonParse(res);
+    if (data.success) {
       return { success: true, leaderboard: data.leaderboard || [] };
     }
   } catch (err) {

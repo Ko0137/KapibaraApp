@@ -11,6 +11,18 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
+// Enable CORS manually to allow requests from any external host (like Vercel or Telegram client)
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Express static serving for public and dist assets
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(path.join(__dirname, 'dist')));
@@ -307,7 +319,9 @@ app.get('/api/duel/real-players', (_req: Request, res: Response) => {
 
 async function startServer() {
   const distPath = path.join(__dirname, 'dist');
-  const isProduction = process.env.NODE_ENV === 'production' || fs.existsSync(distPath);
+  // Determine production mode strictly based on NODE_ENV. 
+  // If NODE_ENV is not 'production', we should ALWAYS use Vite dev server middlewares to support HMR and dev source files.
+  const isProduction = process.env.NODE_ENV === 'production' || (!fs.existsSync(path.join(__dirname, 'src')) && fs.existsSync(distPath));
 
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
