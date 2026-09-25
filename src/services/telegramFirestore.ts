@@ -25,6 +25,10 @@ export const getTelegramUserId = (): string => {
 export const loadUserProgress = async (): Promise<GameSaveData | null> => {
   try {
     const user = await ensureAuthenticated();
+    if (!user) {
+      console.warn("No user, skipping cloud load");
+      return null;
+    }
     const docRef = doc(db, 'users', user.uid);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
@@ -39,6 +43,10 @@ export const loadUserProgress = async (): Promise<GameSaveData | null> => {
 export const saveUserProgress = async (data: GameSaveData): Promise<void> => {
   try {
     const user = await ensureAuthenticated();
+    if (!user) {
+      console.warn("No user, skipping cloud save");
+      return;
+    }
     const docRef = doc(db, 'users', user.uid);
     
     // Deeply sanitize data: remove undefined values

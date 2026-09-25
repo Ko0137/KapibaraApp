@@ -16,11 +16,11 @@ export const db: Firestore = firebaseConfig.firestoreDatabaseId && firebaseConfi
 let currentUser: User | null = null;
 let authReadyPromise: Promise<User> | null = null;
 
-export function ensureAuthenticated(): Promise<User> {
-  if (currentUser) return Promise.resolve(currentUser);
+export async function ensureAuthenticated(): Promise<User | null> {
+  if (currentUser) return currentUser;
   if (authReadyPromise) return authReadyPromise;
 
-  authReadyPromise = new Promise((resolve, reject) => {
+  authReadyPromise = new Promise((resolve) => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         currentUser = user;
@@ -32,10 +32,10 @@ export function ensureAuthenticated(): Promise<User> {
           currentUser = cred.user;
           unsubscribe();
           resolve(cred.user);
-        } catch (err) {
-          console.warn('Anonymous auth failed:', err);
+        } catch (err: any) {
+          console.warn('Anonymous auth failed, proceeding without auth:', err);
           unsubscribe();
-          reject(err);
+          resolve(null);
         }
       }
     });
