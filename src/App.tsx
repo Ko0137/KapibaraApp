@@ -33,6 +33,8 @@ import {
   loadGameLocally,
   saveGameLocally,
   saveGameToCloud,
+  exportSaveString,
+  importSaveString,
 } from './services/cloudSave';
 import { loadUserProgress, saveUserProgress } from './services/telegramFirestore';
 
@@ -1581,7 +1583,7 @@ export default function App() {
 
       {/* TELEGRAM MINI APP BOTTOM NAVIGATION DOCK */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800/90 py-1.5 px-3">
-        <div className="max-w-md mx-auto grid grid-cols-5 gap-1 text-center">
+        <div className="max-w-md mx-auto grid grid-cols-6 gap-1 text-center">
           
           {/* Tab 1: Tap */}
           <button
@@ -1657,6 +1659,18 @@ export default function App() {
                 {saveData.perkPoints}
               </span>
             )}
+          </button>
+
+          {/* Manual Save Export Button */}
+          <button
+            onClick={() => {
+              const exportStr = exportSaveString(saveData);
+              prompt("Ваш код прогресса (сохраните его в заметки!):", exportStr);
+            }}
+            className="py-1 rounded-xl flex flex-col items-center justify-center text-zinc-500 hover:text-red-400"
+          >
+            <span className="text-xl">💾</span>
+            <span className="text-[10px] mt-0.5">Save</span>
           </button>
 
         </div>
