@@ -531,6 +531,22 @@ export default function App() {
     return () => clearInterval(interval);
   }, [calculatedStats.idleIncome, finalTotalMultiplier, currentLevelDef, advanceLevel]);
 
+  // Add direct coins handler (e.g. for Adsgram rewarded ads)
+  const handleAddCoins = (amount: number) => {
+    setSaveData((prev) => {
+      const updated = {
+        ...prev,
+        coins: prev.coins + amount,
+        totalCoinsEarned: prev.totalCoinsEarned + amount,
+      };
+      // Auto cloud save if logged in
+      if (updated.cloudId) {
+        saveGameToCloud(updated).catch((err) => console.warn('Adsgram cloud save failed:', err));
+      }
+      return updated;
+    });
+  };
+
   // Main Tap Handler - drains energy, advances level
   const handleTap = (amount: number, _isCrit: boolean) => {
     if (saveData.energy <= 0) return;
@@ -1176,6 +1192,8 @@ export default function App() {
         {/* TAB 1: TAP (EXCHANGE / ГЛАВНАЯ) */}
         {currentTab === 'tap' && (
           <MainTapper
+            onAddCoins={handleAddCoins}
+            onShowNotification={addNotification}
             currentLevel={currentLevelDef}
             currentClicks={saveData.currentLevelClicks}
             tapPower={calculatedStats.tapPower}

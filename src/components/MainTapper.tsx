@@ -9,7 +9,21 @@ import { hapticEffects } from '../utils/haptics';
 import { antiCheat } from '../utils/antiCheat';
 import { Zap, ShieldAlert, Rocket, MessageCircle, Lock, Sparkles, Swords, Crown, Award, Skull, AlertCircle } from 'lucide-react';
 
+interface AdsgramAdController {
+  show: () => Promise<{ done: boolean; description: string }>;
+}
+
+declare global {
+  interface Window {
+    Adsgram?: {
+      init: (params: { blockId: string; debug?: boolean }) => AdsgramAdController;
+    };
+  }
+}
+
 interface MainTapperProps {
+  onAddCoins?: (amount: number) => void;
+  onShowNotification?: (title: string, message: string, type: 'success' | 'info' | 'level' | 'achievement' | 'neuromuscular' | 'telegram', icon?: string) => void;
   currentLevel: GameLevel;
   currentClicks: number;
   tapPower: number;
@@ -63,6 +77,8 @@ const MEME_PHRASES = [
 ];
 
 export const MainTapper: React.FC<MainTapperProps> = ({
+  onAddCoins,
+  onShowNotification,
   currentLevel,
   currentClicks,
   tapPower,
@@ -96,6 +112,96 @@ export const MainTapper: React.FC<MainTapperProps> = ({
   const [floatingNumbers, setFloatingNumbers] = useState<FloatingNumber[]>([]);
   const [antiCheatWarning, setAntiCheatWarning] = useState<string | null>(null);
   const [memeQuote, setMemeQuote] = useState<string>('Капибара познала дзен и не парится 🦫');
+
+  // Adsgram state & hooks
+  const [adsgramLoaded, setAdsgramLoaded] = useState(false);
+  const [adLoading, setAdLoading] = useState(false);
+
+  useEffect(() => {
+    // 1. If Adsgram is already loaded globally, mark as loaded
+    if (window.Adsgram) {
+      setAdsgramLoaded(true);
+      return;
+    }
+
+    // 2. Load the script dynamically to avoid SSR/Vite compilation issues
+    const script = document.createElement('script');
+    script.src = 'https://sad.adsgram.ai/js/sad.min.js';
+    script.async = true;
+    script.onload = () => {
+      setAdsgramLoaded(true);
+    };
+    script.onerror = () => {
+      console.warn('Failed to dynamically load Adsgram SDK script.');
+    };
+
+    document.head.appendChild(script);
+  }, []);
+
+  const handleWatchAd = () => {
+    if (!adsgramLoaded || !window.Adsgram) {
+      if (onShowNotification) {
+        onShowNotification(
+          '📺 Реклама не готова',
+          'Рекламный блок Adsgram загружается. Пожалуйста, подождите секунду и нажмите снова!',
+          'info',
+          '⏳'
+        );
+      } else {
+        alert('Рекламный блок Adsgram еще загружается. Пожалуйста, подождите секунду.');
+      }
+      return;
+    }
+
+    setAdLoading(true);
+
+    try {
+      const adController = window.Adsgram.init({ blockId: '49948' });
+      adController
+        .show()
+        .then(() => {
+          setAdLoading(false);
+          // Reward: +5000 coins
+          if (onAddCoins) {
+            onAddCoins(5000);
+          }
+          if (onShowNotification) {
+            onShowNotification(
+              '🎬 Награда начислена!',
+              'Вы успешно посмотрели рекламу и получили +5,000 🪙!',
+              'success',
+              '💎'
+            );
+          }
+          sound.playComboSuccess();
+        })
+        .catch((err) => {
+          setAdLoading(false);
+          const errorMsg = err && typeof err === 'object' && 'description' in err 
+            ? String(err.description) 
+            : 'Просмотр рекламы был закрыт или отменен.';
+          if (onShowNotification) {
+            onShowNotification(
+              '❌ Реклама прервана',
+              errorMsg,
+              'info',
+              '📺'
+            );
+          }
+        });
+    } catch (e) {
+      setAdLoading(false);
+      console.error('Adsgram initialization error:', e);
+      if (onShowNotification) {
+        onShowNotification(
+          '❌ Ошибка инициализации',
+          'Произошла ошибка при запуске рекламы.',
+          'info',
+          '⚠️'
+        );
+      }
+    }
+  };
 
   const nextFloatingId = useRef(0);
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -248,9 +354,14 @@ export const MainTapper: React.FC<MainTapperProps> = ({
     e.preventDefault();
     setIsPressed(true);
     const target = e.currentTarget;
-    const rect = target && typeof target.getBoundingClientRect === 'function'
-      ? target.getBoundingClientRect()
-      : { left: 0, top: 0, width: 224, height: 224 };
+    let rect = { left: 0, top: 0, width: 224, height: 224 };
+    if (target && typeof target.getBoundingClientRect === 'function') {
+      try {
+        rect = target.getBoundingClientRect();
+      } catch (err) {
+        console.warn('Failed to getBoundingClientRect on pointer down:', err);
+      }
+    }
     handleTap(e.clientX, e.clientY, rect, e.isTrusted);
   };
 
@@ -261,9 +372,14 @@ export const MainTapper: React.FC<MainTapperProps> = ({
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     // Multi-touch support for legitimate fast finger taps
     const target = e.currentTarget;
-    const rect = target && typeof target.getBoundingClientRect === 'function'
-      ? target.getBoundingClientRect()
-      : { left: 0, top: 0, width: 224, height: 224 };
+    let rect = { left: 0, top: 0, width: 224, height: 224 };
+    if (target && typeof target.getBoundingClientRect === 'function') {
+      try {
+        rect = target.getBoundingClientRect();
+      } catch (err) {
+        console.warn('Failed to getBoundingClientRect on touch start:', err);
+      }
+    }
     Array.from(e.changedTouches).forEach((touch) => {
       handleTap(touch.clientX, touch.clientY, rect, true);
     });
@@ -599,6 +715,39 @@ export const MainTapper: React.FC<MainTapperProps> = ({
       <div className="w-full bg-zinc-900/80 border border-zinc-800/80 rounded-2xl p-2 my-1 text-center text-xs text-amber-200/90 font-medium flex items-center justify-center gap-1.5 shadow-inner">
         <MessageCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
         <span className="truncate italic">"{memeQuote}"</span>
+      </div>
+
+      {/* Adsgram Rewarded Ad Banner Button */}
+      <div className="w-full my-1">
+        <button
+          onClick={handleWatchAd}
+          disabled={adLoading}
+          className={`w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white font-black text-xs shadow-md border border-purple-400/30 flex items-center justify-between gap-2 active:scale-95 transition-all relative overflow-hidden ${
+            adLoading ? 'opacity-80 cursor-wait' : 'hover:brightness-110'
+          }`}
+        >
+          {/* Shimmer loading ray overlay if active */}
+          {adLoading && (
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+          )}
+          
+          <div className="flex items-center gap-2">
+            <span className="text-base shrink-0 animate-pulse">🎬</span>
+            <div className="text-left">
+              <span className="block font-black tracking-wide uppercase text-[10px] text-yellow-300">
+                Бесплатные Монеты
+              </span>
+              <span className="text-[11px] text-zinc-100 font-bold">
+                {adLoading ? 'Загрузка видео...' : 'Смотреть рекламу за награду'}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-black/40 border border-white/20 px-2.5 py-1 rounded-xl text-yellow-300 font-bold font-mono text-[11px] shrink-0 flex items-center gap-1">
+            <span>+5,000</span>
+            <span className="text-xs">🪙</span>
+          </div>
+        </button>
       </div>
 
       {/* Bottom Energy & Boost Bar */}
