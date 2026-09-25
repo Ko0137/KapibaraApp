@@ -99,6 +99,7 @@ export default function App() {
 
   // Telegram User & In-App Notification Toast state
   const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
+  const [isTelegram, setIsTelegram] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   // Neuromuscular Impulse Tap Mode state
@@ -123,7 +124,8 @@ export default function App() {
 
   // Initialize Telegram WebApp SDK & Sync User Account
   useEffect(() => {
-    const { user } = initTelegramApp();
+    const { user, isTelegram: activeInTelegram } = initTelegramApp();
+    setIsTelegram(activeInTelegram);
     if (user) {
       setTgUser(user);
       const userHandle = user.username ? `@${user.username}` : `${user.first_name} ${user.last_name || ''}`.trim();
@@ -1061,7 +1063,9 @@ export default function App() {
       <FlyingEvent onCollect={handleCollectDumpling} />
 
       {/* TOP HEADER: Clean Hamster Kombat / Telegram Style */}
-      <header className="sticky top-0 z-40 bg-zinc-950/95 backdrop-blur-md border-b border-zinc-800/80 px-3 py-2 shadow-md">
+      <header className={`sticky top-0 z-40 bg-zinc-950/95 backdrop-blur-md border-b border-zinc-800/80 shadow-md transition-all ${
+        isTelegram ? 'px-2 py-1.5' : 'px-3 py-2'
+      }`}>
         <div className="max-w-md mx-auto flex items-center justify-between gap-2">
           
           {/* User Profile & League Pill */}
@@ -1165,7 +1169,9 @@ export default function App() {
       </header>
 
       {/* MAIN VIEWPORT: Switch by Selected Tab */}
-      <main className="flex-1 flex flex-col items-center justify-start p-3 max-w-md mx-auto w-full space-y-3 pb-24">
+      <main className={`flex-1 flex flex-col items-center justify-start max-w-md mx-auto w-full pb-24 transition-all ${
+        isTelegram ? 'p-2.5 space-y-2' : 'p-3 space-y-3'
+      }`}>
         
         {/* TAB 1: TAP (EXCHANGE / ГЛАВНАЯ) */}
         {currentTab === 'tap' && (
@@ -1616,6 +1622,7 @@ export default function App() {
           playerLevel={saveData.level}
           totalTaps={saveData.totalTaps}
           totalCoinsEarned={saveData.totalCoinsEarned}
+          isTelegram={isTelegram}
         />
       )}
 

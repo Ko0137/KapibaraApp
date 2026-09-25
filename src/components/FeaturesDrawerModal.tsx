@@ -26,6 +26,7 @@ interface FeaturesDrawerModalProps {
   playerLevel: number;
   totalTaps: number;
   totalCoinsEarned: number;
+  isTelegram?: boolean;
 }
 
 export const FeaturesDrawerModal: React.FC<FeaturesDrawerModalProps> = ({
@@ -39,6 +40,7 @@ export const FeaturesDrawerModal: React.FC<FeaturesDrawerModalProps> = ({
   playerLevel,
   totalTaps,
   totalCoinsEarned,
+  isTelegram = false,
 }) => {
   const handleSelect = (modalName: string) => {
     hapticEffects.tap();
@@ -186,7 +188,13 @@ export const FeaturesDrawerModal: React.FC<FeaturesDrawerModalProps> = ({
             </div>
             <div>
               <div className="font-extrabold text-xs text-white">Облако</div>
-              <div className="text-[10px] text-zinc-400">Cloud ID & Резерв</div>
+              <div className="text-[10px] text-zinc-400">
+                {isTelegram ? (
+                  <span className="text-emerald-400 font-semibold">Автосохранение ✓</span>
+                ) : (
+                  'Cloud ID & Резерв'
+                )}
+              </div>
             </div>
           </button>
 
