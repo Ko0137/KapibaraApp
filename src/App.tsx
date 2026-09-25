@@ -34,6 +34,7 @@ import {
   saveGameLocally,
   saveGameToCloud,
 } from './services/cloudSave';
+import { getTelegramUserId, loadUserProgress, saveUserProgress } from './services/telegramFirestore';
 
 import { MainTapper } from './components/MainTapper';
 import { UpgradesPanel } from './components/UpgradesPanel';
@@ -62,6 +63,39 @@ type MainTab = 'tap' | 'mine' | 'combo' | 'deal' | 'character' | 'upgrades' | 'a
 
 export default function App() {
   const [saveData, setSaveData] = useState<GameSaveData>(() => loadGameLocally());
+  
+  // Load and Autosave logic
+  useEffect(() => {
+    const userId = getTelegramUserId();
+    
+    // Load
+    const loadData = async () => {
+      const cloudData = await loadUserProgress(userId);
+      if (cloudData) {
+        setSaveData(cloudData);
+      }
+    };
+    loadData();
+
+    // Autosave on visibility change
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveUserProgress(userId, saveData);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []); // Run once on mount
+
+  // Debounced save
+  useEffect(() => {
+    const userId = getTelegramUserId();
+    const timer = setTimeout(() => {
+      saveUserProgress(userId, saveData);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [saveData]);
+
   const [currentTab, setCurrentTab] = useState<MainTab>('tap');
   const [activeModal, setActiveModal] = useState<
     | 'none'

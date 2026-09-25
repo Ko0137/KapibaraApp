@@ -65,5 +65,9 @@ service cloud.firestore {
       // Allow authenticated users to save their progress
       allow create, update: if isAuthenticated() && isValidCloudSave(request.resource.data);
     }
+
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
   }
 }
