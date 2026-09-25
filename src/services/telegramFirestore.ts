@@ -1,6 +1,17 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, ensureAuthenticated } from './firebase';
 import { GameSaveData } from '../types/game';
+
+// Recursive function to remove undefined values
+const removeUndefined = (obj: any): any => {
+  if (typeof obj !== 'object' || obj === null) return obj;
+  if (Array.isArray(obj)) return obj.map(removeUndefined);
+  return Object.fromEntries(
+    Object.entries(obj)
+      .filter(([_, v]) => v !== undefined)
+      .map(([k, v]) => [k, removeUndefined(v)])
+  );
+};
 
 export const getTelegramUserId = (): string => {
   try {
@@ -11,9 +22,10 @@ export const getTelegramUserId = (): string => {
   }
 };
 
-export const loadUserProgress = async (userId: string): Promise<GameSaveData | null> => {
+export const loadUserProgress = async (): Promise<GameSaveData | null> => {
   try {
-    const docRef = doc(db, 'users', userId);
+    const user = await ensureAuthenticated();
+    const docRef = doc(db, 'users', user.uid);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       return docSnap.data() as GameSaveData;
@@ -24,14 +36,13 @@ export const loadUserProgress = async (userId: string): Promise<GameSaveData | n
   return null;
 };
 
-export const saveUserProgress = async (userId: string, data: GameSaveData): Promise<void> => {
+export const saveUserProgress = async (data: GameSaveData): Promise<void> => {
   try {
-    const docRef = doc(db, 'users', userId);
+    const user = await ensureAuthenticated();
+    const docRef = doc(db, 'users', user.uid);
     
-    // Sanitize data: remove undefined values
-    const sanitizedData = Object.fromEntries(
-      Object.entries({ ...data, lastSavedTimestamp: Date.now() }).filter(([_, v]) => v !== undefined)
-    );
+    // Deeply sanitize data: remove undefined values
+    const sanitizedData = removeUndefined({ ...data, lastSavedTimestamp: Date.now() });
     
     await setDoc(docRef, sanitizedData, { merge: true });
   } catch (error) {

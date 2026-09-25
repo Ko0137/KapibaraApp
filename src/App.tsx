@@ -34,7 +34,7 @@ import {
   saveGameLocally,
   saveGameToCloud,
 } from './services/cloudSave';
-import { getTelegramUserId, loadUserProgress, saveUserProgress } from './services/telegramFirestore';
+import { loadUserProgress, saveUserProgress } from './services/telegramFirestore';
 
 import { MainTapper } from './components/MainTapper';
 import { UpgradesPanel } from './components/UpgradesPanel';
@@ -66,11 +66,10 @@ export default function App() {
   
   // Load and Autosave logic
   useEffect(() => {
-    const userId = getTelegramUserId();
     
     // Load
     const loadData = async () => {
-      const cloudData = await loadUserProgress(userId);
+      const cloudData = await loadUserProgress();
       if (cloudData) {
         setSaveData(cloudData);
       }
@@ -80,7 +79,7 @@ export default function App() {
     // Autosave on visibility change
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        saveUserProgress(userId, saveData);
+        saveUserProgress(saveData);
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -89,9 +88,8 @@ export default function App() {
 
   // Debounced save
   useEffect(() => {
-    const userId = getTelegramUserId();
     const timer = setTimeout(() => {
-      saveUserProgress(userId, saveData);
+      saveUserProgress(saveData);
     }, 5000);
     return () => clearTimeout(timer);
   }, [saveData]);
