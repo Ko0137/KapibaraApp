@@ -75,7 +75,8 @@ export default function App() {
     // Autosave on visibility change
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        saveUserProgress(saveData);
+        saveGameLocally(saveData);
+        saveToTelegramCloud(saveData);
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
