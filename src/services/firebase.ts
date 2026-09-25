@@ -13,35 +13,16 @@ export const db: Firestore = firebaseConfig.firestoreDatabaseId && firebaseConfi
   ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
   : getFirestore(app);
 
-let currentUser: User | null = null;
-let authReadyPromise: Promise<User> | null = null;
-
 export async function ensureAuthenticated(): Promise<User | null> {
-  if (currentUser) return currentUser;
-  if (authReadyPromise) return authReadyPromise;
+  if (auth.currentUser) return auth.currentUser;
 
-  authReadyPromise = new Promise((resolve) => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        currentUser = user;
-        unsubscribe();
-        resolve(user);
-      } else {
-        try {
-          const cred = await signInAnonymously(auth);
-          currentUser = cred.user;
-          unsubscribe();
-          resolve(cred.user);
-        } catch (err: any) {
-          console.warn('Anonymous auth failed, proceeding without auth:', err);
-          unsubscribe();
-          resolve(null);
-        }
-      }
-    });
-  });
-
-  return authReadyPromise;
+  try {
+    const cred = await signInAnonymously(auth);
+    return cred.user;
+  } catch (err: any) {
+    console.warn('Anonymous auth failed, proceeding without auth:', err);
+    return null;
+  }
 }
 
 // Validation connection helper as required by Firebase skill
