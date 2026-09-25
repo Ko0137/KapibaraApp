@@ -37,6 +37,15 @@ service cloud.firestore {
              (!('verifiedFair' in data) || (data.verifiedFair is bool));
     }
 
+    function isValidCloudSave(data) {
+      let requiredKeys = ['cloudId', 'playerName', 'level', 'totalTaps', 'coins', 'gems', 'prestigeCount', 'saveData', 'updatedAt'];
+      return data.keys().hasAll(requiredKeys) &&
+             data.cloudId is string &&
+             data.playerName is string &&
+             data.level is number &&
+             data.saveData is string;
+    }
+
     match /leaderboard/{userId} {
       // Leaderboard is globally viewable by all players
       allow read: if true;
@@ -47,6 +56,14 @@ service cloud.firestore {
                                isValidLeaderboardEntry(request.resource.data);
 
       allow delete: if isValidId(userId) && isOwner(userId);
+    }
+
+    match /cloudSaves/{cloudId} {
+      // Allow anyone to load game progress using a cloudId
+      allow read: if true;
+
+      // Allow authenticated users to save their progress
+      allow create, update: if isAuthenticated() && isValidCloudSave(request.resource.data);
     }
   }
 }

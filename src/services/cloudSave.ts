@@ -1,6 +1,7 @@
 import { GameSaveData } from '../types/game';
 import { INITIAL_DAILY_QUESTS } from '../data/upgrades';
-import { getApiUrl, safeJsonParse } from '../utils/api';
+import { doc, setDoc, getDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { db, ensureAuthenticated, auth } from './firebase';
 
 const LOCAL_STORAGE_KEY = 'megatap_v1_savegame';
 
@@ -118,58 +119,104 @@ export function loadGameLocally(tgUserId?: string | number): GameSaveData {
   return getDefaultSaveData();
 }
 
+function generateCloudId(): string {
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `TAP-${code}`;
+}
+
 export async function saveGameToCloud(data: GameSaveData, customCloudId?: string): Promise<{ success: boolean; cloudId: string; message: string }> {
   try {
-    const targetCloudId = customCloudId || data.cloudId;
-    const response = await fetch(getApiUrl('/api/cloud/save'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cloudId: targetCloudId,
-        playerName: data.playerName,
-        saveData: {
-          ...data,
-          lastSavedTimestamp: Date.now()
-        }
-      })
-    });
+    await ensureAuthenticated();
+    
+    const targetCloudId = customCloudId || data.cloudId || generateCloudId();
+    const cleanId = targetCloudId.trim().toUpperCase();
 
-    const result = await safeJsonParse(response);
-    if (!result.success) {
-      throw new Error(result.error || 'Ошибка сохранения в облако');
+    const docRef = doc(db, 'cloudSaves', cleanId);
+    
+    const record = {
+      cloudId: cleanId,
+      playerName: data.playerName || 'Игрок',
+      level: Number(data.level) || 1,
+      totalTaps: Number(data.totalTaps) || 0,
+      coins: Number(data.coins) || 0,
+      gems: Number(data.gems) || 0,
+      prestigeCount: Number(data.prestigeCount) || 0,
+      saveData: JSON.stringify({
+        ...data,
+        cloudId: cleanId,
+        lastSavedTimestamp: Date.now()
+      }),
+      updatedAt: new Date().toISOString()
+    };
+
+    await setDoc(docRef, record);
+
+    // Sync to competitive leaderboard collection as well
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        const leaderRef = doc(db, 'leaderboard', user.uid);
+        await setDoc(leaderRef, {
+          userId: user.uid,
+          cloudId: cleanId,
+          nickname: data.playerName || 'Игрок',
+          level: Number(data.level) || 1,
+          prestige: Number(data.prestigeCount) || 0,
+          totalCoinsEarned: Number(data.totalCoinsEarned) || Number(data.coins) || 0,
+          bossesDefeated: Array.isArray(data.completedBosses) ? data.completedBosses.length : 0,
+          verifiedFair: true,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
+    } catch (e) {
+      console.warn('Leaderboard auto-update failed:', e);
     }
 
     return {
       success: true,
-      cloudId: result.cloudId,
-      message: result.message || 'Прогресс успешно сохранён в облаке!'
+      cloudId: cleanId,
+      message: 'Прогресс успешно сохранён в облаке!'
     };
   } catch (err: any) {
+    console.error('Firestore save failed:', err);
     return {
       success: false,
       cloudId: data.cloudId || '',
-      message: err.message || 'Сбой подключения к облаку'
+      message: err.message || 'Сбой подключения к облаку Firestore'
     };
   }
 }
 
 export async function loadGameFromCloud(cloudId: string): Promise<{ success: boolean; saveData?: GameSaveData; error?: string }> {
   try {
+    await ensureAuthenticated();
     const cleanId = cloudId.trim().toUpperCase();
-    const response = await fetch(getApiUrl(`/api/cloud/load/${encodeURIComponent(cleanId)}`));
-    const result = await safeJsonParse(response);
+    const docRef = doc(db, 'cloudSaves', cleanId);
+    const docSnap = await getDoc(docRef);
 
-    if (!result.success) {
+    if (!docSnap.exists()) {
       return {
         success: false,
-        error: result.error || 'Облачное сохранение не найдено'
+        error: `Облачное сохранение с кодом "${cleanId}" не найдено!`
       };
+    }
+
+    const record = docSnap.data();
+    let parsedSave: any;
+    if (typeof record.saveData === 'string') {
+      parsedSave = JSON.parse(record.saveData);
+    } else {
+      parsedSave = record.saveData;
     }
 
     const mergedData: GameSaveData = {
       ...getDefaultSaveData(),
-      ...result.saveData,
-      cloudId: result.cloudId
+      ...parsedSave,
+      cloudId: record.cloudId
     };
 
     // Save locally as well
@@ -180,20 +227,38 @@ export async function loadGameFromCloud(cloudId: string): Promise<{ success: boo
       saveData: mergedData
     };
   } catch (err: any) {
+    console.error('Firestore load failed:', err);
     return {
       success: false,
-      error: err.message || 'Не удалось связаться с сервером облака'
+      error: err.message || 'Не удалось связаться с облаком Firestore'
     };
   }
 }
 
 export async function fetchLeaderboard(): Promise<{ success: boolean; leaderboard: any[] }> {
   try {
-    const res = await fetch(getApiUrl('/api/cloud/leaderboard'));
-    const data = await safeJsonParse(res);
-    if (data.success) {
-      return { success: true, leaderboard: data.leaderboard || [] };
-    }
+    await ensureAuthenticated();
+    const q = query(collection(db, 'leaderboard'), orderBy('level', 'desc'), orderBy('prestige', 'desc'), limit(30));
+    const querySnapshot = await getDocs(q);
+    const leaderboard: any[] = [];
+    
+    let rank = 1;
+    querySnapshot.forEach((doc) => {
+      const d = doc.data();
+      leaderboard.push({
+        rank: rank++,
+        cloudId: d.cloudId || 'TAP-USER',
+        playerName: d.nickname || 'Игрок',
+        level: d.level || 1,
+        totalTaps: d.totalTaps || 0,
+        coins: d.totalCoinsEarned || d.coins || 0,
+        gems: d.gems || 0,
+        prestigeCount: d.prestige || 0,
+        updatedAt: d.updatedAt || new Date().toISOString()
+      });
+    });
+
+    return { success: true, leaderboard };
   } catch (err) {
     console.error('Failed to fetch leaderboard:', err);
   }

@@ -12,7 +12,9 @@ import { CharacterFighterVisual } from './CharacterFighterVisual';
 import { formatNumber } from '../utils/format';
 import { sound } from '../utils/audio';
 import { hapticEffects } from '../utils/haptics';
-import { getApiUrl, safeJsonParse } from '../utils/api';
+import { getApiUrl } from '../utils/api';
+import { collection, getDocs, limit, query } from 'firebase/firestore';
+import { db, ensureAuthenticated } from '../services/firebase';
 
 interface DealModalProps {
   onClose: () => void;
@@ -68,22 +70,164 @@ export const DealModal: React.FC<DealModalProps> = ({
   const playerHat = CHARACTER_HATS.find((h) => h.id === selectedHatId) || CHARACTER_HATS[0];
   const playerStats = computeCharacterComposite(playerSkin, playerHat, perks, playerLevel, immortalUnlocked);
 
-  // Fetch real online/registered players from cloud server
+  // Fetch real online/registered players from Firestore cloudSaves collection (falling back to seeds)
   useEffect(() => {
     let isMounted = true;
     async function loadOpponents() {
       try {
-        const res = await fetch(getApiUrl('/api/duel/real-players'));
-        const data = await safeJsonParse(res);
-        if (data.success && Array.isArray(data.opponents) && isMounted) {
-          setRealPlayers(data.opponents);
+        await ensureAuthenticated();
+        
+        // Define fallback seed opponents
+        const seedOpponents: DealOpponent[] = [
+          {
+            id: 'TAP-DUB1',
+            nickname: 'Шейх Капибар 🇦🇪',
+            level: 42,
+            coins: 18500000,
+            avatarIcon: '🦫',
+            auraEffect: 'deal_fire',
+            tapPower: 924,
+            dealRank: '💼 Акула Сделок',
+            equippedSkinId: 'skin_sheikh_capy',
+            equippedHatId: 'hat_crown',
+            equippedWeaponId: 'scepter',
+            bodyMutation: 'normal',
+            isOnline: true,
+            tier: 'mortal'
+          },
+          {
+            id: 'TAP-SAM8',
+            nickname: 'Капи-Рёнин 2077 🥷',
+            level: 89,
+            coins: 98000000,
+            avatarIcon: '🦫',
+            auraEffect: 'deal_fire',
+            tapPower: 1958,
+            dealRank: '👑 Крипто-Владыка',
+            equippedSkinId: 'skin_samurai_capy',
+            equippedHatId: 'hat_shades',
+            equippedWeaponId: 'katana',
+            bodyMutation: 'normal',
+            isOnline: true,
+            tier: 'mortal'
+          },
+          {
+            id: 'TAP-TIT9',
+            nickname: 'Титан Колосс 💪',
+            level: 168,
+            coins: 1200000000,
+            avatarIcon: '👑',
+            auraEffect: 'divine_light',
+            tapPower: 3696,
+            dealRank: '👑 Крипто-Владыка',
+            equippedSkinId: 'skin_muscle_mutant',
+            equippedHatId: 'hat_demon_horns',
+            equippedWeaponId: 'greatsword',
+            bodyMutation: 'muscle',
+            isOnline: true,
+            tier: 'divine'
+          },
+          {
+            id: 'TAP-ARC3',
+            nickname: 'Архимаг Эфира 🔮',
+            level: 210,
+            coins: 4500000000,
+            avatarIcon: '👑',
+            auraEffect: 'divine_light',
+            tapPower: 4620,
+            dealRank: '✨ Божественный Серафим',
+            equippedSkinId: 'skin_toxic_ooze',
+            equippedHatId: 'hat_archmage_hood',
+            equippedWeaponId: 'crystal_orb',
+            bodyMutation: 'slime',
+            isOnline: true,
+            tier: 'divine'
+          },
+          {
+            id: 'TAP-IMM1',
+            nickname: 'Бессмертный Абсолют 🌌',
+            level: 295,
+            coins: 58000000000,
+            avatarIcon: '🌌',
+            auraEffect: 'immortal_void',
+            tapPower: 6490,
+            dealRank: '🌌 Бессмертный Владыка',
+            equippedSkinId: 'skin_god_capy',
+            equippedHatId: 'hat_cosmic_crown',
+            equippedWeaponId: 'scythe',
+            bodyMutation: 'immortal',
+            isOnline: true,
+            tier: 'immortal'
+          }
+        ];
+
+        // Query Firestore cloudSaves collection
+        const q = query(collection(db, 'cloudSaves'), limit(50));
+        const querySnapshot = await getDocs(q);
+        const fetchedOpponents: DealOpponent[] = [];
+
+        querySnapshot.forEach((docSnap) => {
+          const r = docSnap.data();
+          let sData: any = {};
+          try {
+            sData = typeof r.saveData === 'string' ? JSON.parse(r.saveData) : r.saveData || {};
+          } catch (e) {
+            sData = {};
+          }
+
+          const perks = sData.perks || {};
+          let weapon: any = undefined;
+          if (perks['perk_colossal_sword']) weapon = 'greatsword';
+          else if (perks['perk_katana_shadow']) weapon = 'katana';
+          else if (perks['perk_gold_scepter']) weapon = 'scepter';
+          else if (perks['perk_crystal_orb']) weapon = 'crystal_orb';
+          else if (perks['perk_abyss_scythe']) weapon = 'scythe';
+
+          let body: any = 'normal';
+          const lvl = Number(r.level) || 1;
+          if (lvl > 265 || sData.immortalUnlocked) body = 'immortal';
+          else if (lvl > 165) body = 'divine';
+          else if (perks['perk_muscle_mutation']) body = 'muscle';
+          else if (perks['perk_slime_mutation']) body = 'slime';
+          else if (perks['perk_skeleton_frame']) body = 'skeleton';
+
+          const tier = lvl > 265 ? 'immortal' : (lvl > 165 ? 'divine' : 'mortal');
+          const isOnline = r.updatedAt ? (Date.now() - new Date(r.updatedAt).getTime()) < 1000 * 60 * 15 : false;
+
+          fetchedOpponents.push({
+            id: r.cloudId || docSnap.id,
+            nickname: r.playerName || 'Игрок',
+            level: lvl,
+            coins: Math.max(15000, Number(r.coins) || 0),
+            avatarIcon: body === 'immortal' ? '🌌' : (body === 'divine' ? '👑' : '🦫'),
+            auraEffect: body === 'immortal' ? 'immortal_void' : (body === 'divine' ? 'divine_light' : 'deal_fire'),
+            tapPower: Math.max(80, Math.round(lvl * 22)),
+            dealRank: lvl > 265 ? '🌌 Бессмертный Владыка' : (lvl > 165 ? '✨ Божественный Серафим' : (lvl > 80 ? '👑 Крипто-Владыка' : '💼 Акула Сделок')),
+            equippedSkinId: sData.selectedSkinId || 'skin_default',
+            equippedHatId: sData.selectedHatId || 'hat_none',
+            equippedWeaponId: weapon,
+            bodyMutation: body,
+            isOnline: isOnline,
+            tier: tier
+          });
+        });
+
+        // Merge fetched and seeds
+        const allOpponents = [...fetchedOpponents];
+        seedOpponents.forEach(seed => {
+          if (!allOpponents.some(o => o.id === seed.id)) {
+            allOpponents.push(seed);
+          }
+        });
+
+        if (isMounted) {
+          setRealPlayers(allOpponents);
           
-          // Balanced Matchmaking for Weekly Mandatory Deal
-          // Pick opponent closest to player's level
-          const sortedByLevelDiff = [...data.opponents].sort(
+          // Matchmaking logic
+          const sortedByLevelDiff = [...allOpponents].sort(
             (a, b) => Math.abs(a.level - playerLevel) - Math.abs(b.level - playerLevel)
           );
-          setSelectedOpponent(sortedByLevelDiff[0] || data.opponents[0]);
+          setSelectedOpponent(sortedByLevelDiff[0] || allOpponents[0]);
         }
       } catch (err) {
         console.error('Failed to load real duel opponents:', err);
