@@ -14,7 +14,8 @@ interface CharacterModalProps {
   playerLevel: number;
   playerCoins: number;
   playerGems: number;
-  selectedSkinId: string;
+  selectedSkinIdBase: string;
+  selectedSkinIdOverlay: string;
   unlockedSkinIds: string[];
   selectedHatId: string;
   unlockedHatIds: string[];
@@ -22,7 +23,8 @@ interface CharacterModalProps {
   dealStats: { dealsWon: number; dealsLost: number };
   unlockedSecretEvents?: string[];
   customConfig?: CustomCapybaraConfig;
-  onSelectSkin: (skinId: string) => void;
+  onSelectSkinBase: (skinId: string) => void;
+  onSelectSkinOverlay: (skinId: string) => void;
   onBuySkin: (skin: CharacterSkin) => void;
   onSelectHat: (hatId: string) => void;
   onOpenPerksTree: () => void;
@@ -36,7 +38,8 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
   playerLevel,
   playerCoins,
   playerGems,
-  selectedSkinId,
+  selectedSkinIdBase,
+  selectedSkinIdOverlay,
   unlockedSkinIds,
   selectedHatId,
   unlockedHatIds,
@@ -44,7 +47,8 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
   dealStats,
   unlockedSecretEvents = [],
   customConfig,
-  onSelectSkin,
+  onSelectSkinBase,
+  onSelectSkinOverlay,
   onBuySkin,
   onSelectHat,
   onOpenPerksTree,
@@ -57,7 +61,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
   const [isTransforming, setIsTransforming] = useState(false);
   const [showDetailedStats, setShowDetailedStats] = useState(false);
 
-  const currentSkin = CHARACTER_SKINS.find((s) => s.id === selectedSkinId) || CHARACTER_SKINS[0];
+  const currentSkin = CHARACTER_SKINS.find((s) => s.id === selectedSkinIdBase) || CHARACTER_SKINS[0];
   const currentHat = CHARACTER_HATS.find((h) => h.id === selectedHatId) || CHARACTER_HATS[0];
 
   // Trigger transformation animation on skin, hat, or level change
@@ -67,7 +71,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
       setIsTransforming(false);
     }, 850);
     return () => clearTimeout(timer);
-  }, [selectedSkinId, selectedHatId, playerLevel]);
+  }, [selectedSkinIdBase, selectedSkinIdOverlay, selectedHatId, playerLevel]);
 
   // Soulslike dynamic composite stats computation
   const stats = computeCharacterComposite(currentSkin, currentHat, perks);
@@ -540,8 +544,9 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
             {/* Skins List */}
             <div className="space-y-2">
               {filteredSkins.map((skin) => {
-                const isUnlocked = unlockedSkinIds.includes(skin.id);
-                const isSelected = selectedSkinId === skin.id;
+                const isSelectedBase = selectedSkinIdBase === skin.id;
+                const isSelectedOverlay = selectedSkinIdOverlay === skin.id;
+                const isSelected = isSelectedBase || isSelectedOverlay;
                 const canAffordCoins = !skin.costCoins || playerCoins >= skin.costCoins;
                 const canAffordGems = !skin.costGems || playerGems >= skin.costGems;
                 const isLevelUnlocked = playerLevel >= (skin.requiredLevel || 1);
@@ -573,9 +578,14 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                                 СЕКРЕТ
                               </span>
                             )}
-                            {isSelected && (
+                            {isSelectedBase && (
                               <span className="text-[9px] bg-amber-500 text-black px-1.5 py-0.2 rounded-md font-extrabold">
-                                НАДЕТО
+                                БАЗА
+                              </span>
+                            )}
+                            {isSelectedOverlay && (
+                              <span className="text-[9px] bg-purple-500 text-black px-1.5 py-0.2 rounded-md font-extrabold">
+                                НАЛОЖЕНИЕ
                               </span>
                             )}
                           </div>
@@ -592,22 +602,29 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                       </div>
 
                       <div className="shrink-0 flex flex-col items-end gap-1">
-                        {isSelected ? (
-                          <span className="text-amber-400 bg-amber-950/60 border border-amber-800 px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1">
-                            <Check className="w-4 h-4" /> Надет
-                          </span>
-                        ) : isUnlocked ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              hapticEffects.tap();
-                              sound.playCardBuy();
-                              onSelectSkin(skin.id);
-                            }}
-                            className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs rounded-xl transition-transform active:scale-95 shadow-md cursor-pointer"
-                          >
-                            Надеть
-                          </button>
+                        {isUnlocked ? (
+                          <div className="flex gap-1">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                  hapticEffects.tap();
+                                  onSelectSkinBase(skin.id);
+                                }}
+                                className={`px-2 py-1.5 rounded-xl text-[9px] font-black transition-transform active:scale-95 shadow-sm ${isSelectedBase ? 'bg-amber-500 text-black' : 'bg-zinc-700 text-white'}`}
+                            >
+                              База
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                  hapticEffects.tap();
+                                  onSelectSkinOverlay(skin.id);
+                                }}
+                                className={`px-2 py-1.5 rounded-xl text-[9px] font-black transition-transform active:scale-95 shadow-sm ${isSelectedOverlay ? 'bg-purple-500 text-black' : 'bg-zinc-700 text-white'}`}
+                            >
+                              Нал.
+                            </button>
+                          </div>
                         ) : skin.rarity === 'secret' ? (
                           <span className="text-rose-400 bg-rose-950/60 border border-rose-800 px-2.5 py-1 rounded-xl text-[10px] font-bold">
                             Секретно
@@ -624,7 +641,6 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                                 hapticEffects.heavyTap();
                                 sound.playCardBuy();
                                 onBuySkin(skin);
-                                onSelectSkin(skin.id);
                               }
                             }}
                             disabled={!canAffordCoins || !canAffordGems}
