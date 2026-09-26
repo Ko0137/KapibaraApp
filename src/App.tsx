@@ -29,6 +29,7 @@ import { sound } from './utils/audio';
 import { hapticEffects, isHapticsEnabled, setHapticsEnabled } from './utils/haptics';
 import { testFirestoreConnection } from './services/firebase';
 import { loadGameLocally, saveGameLocally, exportSaveString, importSaveString } from './services/cloudSave';
+import { saveUserProgress } from './services/telegramFirestore';
 import { saveToTelegramCloud, loadFromTelegramCloud } from './services/telegramCloud';
 
 import { MainTapper } from './components/MainTapper';
@@ -52,6 +53,7 @@ import { ResetPerksModal } from './components/ResetPerksModal';
 import { SecretEventsModal } from './components/SecretEventsModal';
 import { initTelegramApp, TelegramUser } from './utils/telegram';
 import { NotificationToast, AppNotification } from './components/NotificationToast';
+import confetti from 'canvas-confetti';
 
 // Telegram navigation tabs
 type MainTab = 'tap' | 'mine' | 'combo' | 'deal' | 'character' | 'upgrades' | 'airdrop';
@@ -486,7 +488,7 @@ export default function App() {
   useEffect(() => {
     if (!saveData.cloudId) return;
     const cloudInterval = setInterval(async () => {
-      await saveGameToCloud(saveData);
+      await saveUserProgress(saveData);
     }, 3 * 60 * 1000);
     return () => clearInterval(cloudInterval);
   }, [saveData]);
@@ -574,7 +576,7 @@ export default function App() {
       };
       // Auto cloud save if logged in
       if (updated.cloudId) {
-        saveGameToCloud(updated).catch((err) => console.warn('Adsgram cloud save failed:', err));
+        saveUserProgress(updated).catch((err: any) => console.warn('Adsgram cloud save failed:', err));
       }
       return updated;
     });
@@ -623,8 +625,9 @@ export default function App() {
         return q;
       });
 
-      if (!currentLevelDef.isBoss && newLevelClicks >= currentLevelDef.clicksRequired) {
-        setTimeout(() => advanceLevel(), 100);
+      const clicksRequirementMet = !currentLevelDef.isBoss && newLevelClicks >= currentLevelDef.clicksRequired;
+      if (clicksRequirementMet) {
+        advanceLevel();
       }
 
       return {

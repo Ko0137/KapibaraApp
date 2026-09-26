@@ -37,6 +37,7 @@ export async function submitLeaderboardScore(stats: {
 
     // 2. Authenticate user to get UID
     const user = await ensureAuthenticated();
+    if (!user) return { success: false, error: 'Не удалось аутентифицировать пользователя' };
     const cleanNick = stats.nickname.trim().slice(0, 24) || 'Игрок_' + user.uid.slice(0, 4);
 
     const record: LeaderboardItem = {

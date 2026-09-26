@@ -353,9 +353,9 @@ export const MainTapper: React.FC<MainTapperProps> = ({
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsPressed(true);
-    const target = e.currentTarget;
+    const target = e.currentTarget as HTMLElement | SVGElement;
     let rect = { left: 0, top: 0, width: 224, height: 224 };
-    if (target && typeof target.getBoundingClientRect === 'function') {
+    if (target && 'getBoundingClientRect' in target && typeof target.getBoundingClientRect === 'function') {
       try {
         rect = target.getBoundingClientRect();
       } catch (err) {
@@ -371,9 +371,9 @@ export const MainTapper: React.FC<MainTapperProps> = ({
 
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     // Multi-touch support for legitimate fast finger taps
-    const target = e.currentTarget;
+    const target = e.currentTarget as HTMLElement | SVGElement;
     let rect = { left: 0, top: 0, width: 224, height: 224 };
-    if (target && typeof target.getBoundingClientRect === 'function') {
+    if (target && 'getBoundingClientRect' in target && typeof target.getBoundingClientRect === 'function') {
       try {
         rect = target.getBoundingClientRect();
       } catch (err) {
