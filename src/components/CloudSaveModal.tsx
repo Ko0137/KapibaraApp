@@ -298,7 +298,7 @@ export const CloudSaveModal: React.FC<CloudSaveModalProps> = ({
                     onClick={() => copyToClipboard(exportStr)}
                     className="absolute top-2 right-2 px-2 py-0.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-[10px] font-bold"
                   >
-                    Копировать
+                    {copied ? '✓ Скопировано' : 'Копировать'}
                   </button>
                 </div>
               </div>
