@@ -6,6 +6,7 @@ import { DEFAULT_CUSTOM_CAPYBARA } from '../data/customizerOptions';
 
 interface CharacterFighterVisualProps {
   skin: CharacterSkin;
+  overlaySkin?: CharacterSkin;
   hat: CharacterHat;
   stats: SoulslikeStats;
   customConfig?: CustomCapybaraConfig;
@@ -21,6 +22,7 @@ interface CharacterFighterVisualProps {
 
 export const CharacterFighterVisual: React.FC<CharacterFighterVisualProps> = ({
   skin,
+  overlaySkin,
   hat,
   stats,
   customConfig = DEFAULT_CUSTOM_CAPYBARA,
@@ -51,6 +53,7 @@ export const CharacterFighterVisual: React.FC<CharacterFighterVisualProps> = ({
       <CapybaraAvatarRenderer
         customConfig={customConfig}
         skin={skin}
+        overlaySkin={overlaySkin}
         hat={hat}
         stats={stats}
         isAttacking={isAttacking}

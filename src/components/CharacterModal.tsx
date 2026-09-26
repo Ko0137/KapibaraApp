@@ -62,6 +62,8 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
   const [showDetailedStats, setShowDetailedStats] = useState(false);
 
   const currentSkin = CHARACTER_SKINS.find((s) => s.id === selectedSkinIdBase) || CHARACTER_SKINS[0];
+  const currentOverlay = CHARACTER_SKINS.find((s) => s.id === selectedSkinIdOverlay) || currentSkin;
+  const isOverlayActive = selectedSkinIdOverlay !== selectedSkinIdBase && selectedSkinIdOverlay !== 'skin_default';
   const currentHat = CHARACTER_HATS.find((h) => h.id === selectedHatId) || CHARACTER_HATS[0];
 
   // Trigger transformation animation on skin, hat, or level change
@@ -237,6 +239,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                 >
                   <CharacterFighterVisual
                     skin={currentSkin}
+                    overlaySkin={isOverlayActive ? currentOverlay : undefined}
                     hat={currentHat}
                     stats={stats}
                     customConfig={customConfig}
@@ -251,7 +254,29 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                 <div className="flex flex-wrap items-center gap-1.5 leading-tight">
                   <h3 className="text-xs sm:text-sm font-black text-white truncate">
                     {currentSkin.name}
+                    {isOverlayActive && (
+                      <span className="text-purple-300 font-extrabold ml-1">
+                        + {currentOverlay.name}
+                      </span>
+                    )}
                   </h3>
+                  {isOverlayActive && (
+                    <span className="text-[9px] font-black text-purple-300 bg-purple-950/90 px-2 py-0.5 rounded-full border border-purple-500/50 flex items-center gap-1">
+                      <span>✨</span> {currentOverlay.icon} НАЛОЖЕНИЕ
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          hapticEffects.tap();
+                          onSelectSkinOverlay(selectedSkinIdBase);
+                        }}
+                        className="ml-1 text-purple-400 hover:text-white font-bold p-0.5"
+                        title="Снять наложение"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
                   {currentHat.id !== 'hat_none' && currentHat.name && currentHat.name !== 'Без головного убора' && (
                     <span className="text-[10px] font-bold text-amber-400 bg-amber-950/80 px-1.5 py-0.2 rounded-full border border-amber-500/40">
                       🎩 {currentHat.name}
@@ -568,7 +593,14 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 shadow-md border border-amber-500/40 bg-zinc-950 relative">
-                          <CharacterFighterVisual skin={skin} hat={currentHat} stats={stats} size="sm" showMutationBadges={false} />
+                          <CharacterFighterVisual
+                            skin={skin}
+                            overlaySkin={isSelectedBase && isOverlayActive ? currentOverlay : undefined}
+                            hat={currentHat}
+                            stats={stats}
+                            size="sm"
+                            showMutationBadges={false}
+                          />
                         </div>
 
                         <div>
@@ -604,26 +636,40 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
 
                       <div className="shrink-0 flex flex-col items-end gap-1">
                         {isUnlocked ? (
-                          <div className="flex gap-1">
+                          <div className="flex gap-1.5">
                             <button
                                 type="button"
                                 onClick={() => {
                                   hapticEffects.tap();
                                   onSelectSkinBase(skin.id);
                                 }}
-                                className={`px-2 py-1.5 rounded-xl text-[9px] font-black transition-transform active:scale-95 shadow-sm ${isSelectedBase ? 'bg-amber-500 text-black' : 'bg-zinc-700 text-white'}`}
+                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black transition-transform active:scale-95 shadow-sm ${
+                                  isSelectedBase
+                                    ? 'bg-amber-500 text-black ring-2 ring-amber-300 font-extrabold'
+                                    : 'bg-zinc-700 hover:bg-zinc-650 text-white'
+                                }`}
+                                title="Выбрать как основной скин"
                             >
-                              База
+                              {isSelectedBase ? '✓ База' : 'База'}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => {
                                   hapticEffects.tap();
-                                  onSelectSkinOverlay(skin.id);
+                                  if (isSelectedOverlay && selectedSkinIdOverlay !== selectedSkinIdBase) {
+                                    onSelectSkinOverlay(selectedSkinIdBase);
+                                  } else {
+                                    onSelectSkinOverlay(skin.id);
+                                  }
                                 }}
-                                className={`px-2 py-1.5 rounded-xl text-[9px] font-black transition-transform active:scale-95 shadow-sm ${isSelectedOverlay ? 'bg-purple-500 text-black' : 'bg-zinc-700 text-white'}`}
+                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black transition-transform active:scale-95 shadow-sm ${
+                                  isSelectedOverlay && selectedSkinIdOverlay !== selectedSkinIdBase
+                                    ? 'bg-purple-600 text-white ring-2 ring-purple-300 font-extrabold shadow-purple-600/40'
+                                    : 'bg-zinc-800 hover:bg-zinc-700 text-purple-300 border border-purple-500/40'
+                                }`}
+                                title="Наложить скин вторым слоем (Фузия)"
                             >
-                              Нал.
+                              {isSelectedOverlay && selectedSkinIdOverlay !== selectedSkinIdBase ? '✓ Нал.' : '+ Нал.'}
                             </button>
                           </div>
                         ) : skin.rarity === 'secret' ? (

@@ -262,26 +262,33 @@ export default function App() {
     return GAME_LEVELS[lvlIndex] || GAME_LEVELS[0];
   }, [saveData.level]);
 
-  // Combined Skin Logic
+  // Base & Overlay Skin Logic
+  const baseSkin = useMemo(() => {
+    return CHARACTER_SKINS.find((s) => s.id === saveData.selectedSkinIdBase) || CHARACTER_SKINS[0];
+  }, [saveData.selectedSkinIdBase]);
+
+  const overlaySkin = useMemo(() => {
+    return CHARACTER_SKINS.find((s) => s.id === saveData.selectedSkinIdOverlay) || baseSkin;
+  }, [saveData.selectedSkinIdOverlay, baseSkin]);
+
   const combinedSkin = useMemo(() => {
-    const base = CHARACTER_SKINS.find((s) => s.id === saveData.selectedSkinIdBase) || CHARACTER_SKINS[0];
-    const overlay = CHARACTER_SKINS.find((s) => s.id === saveData.selectedSkinIdOverlay) || CHARACTER_SKINS[0];
-    
-    // Combine names and icons
-    const combinedName = base.id === overlay.id ? base.name : `${base.name} + ${overlay.name}`;
-    const combinedIcon = base.id === overlay.id ? base.icon : `✨${base.icon}`; // Simple visual indicator
-    
-    // Combine bonuses (simple sum)
-    const combinedBonusValue = base.bonusValue + (base.id !== overlay.id ? overlay.bonusValue * 0.5 : 0);
-    
+    const isSame = baseSkin.id === overlaySkin.id;
+    const combinedName = isSame ? baseSkin.name : `${baseSkin.name} + ${overlaySkin.name}`;
+    const combinedIcon = isSame ? baseSkin.icon : `${baseSkin.icon}${overlaySkin.icon}`;
+    const combinedBonusValue = baseSkin.bonusValue + (isSame ? 0 : overlaySkin.bonusValue * 0.5);
+
     return {
-      ...base,
+      ...baseSkin,
       name: combinedName,
       icon: combinedIcon,
       bonusValue: combinedBonusValue,
-      id: `${base.id}_${overlay.id}`,
+      id: baseSkin.id,
+      baseSkinId: baseSkin.id,
+      overlaySkinId: overlaySkin.id,
+      overlayIcon: overlaySkin.icon,
+      overlayName: overlaySkin.name,
     };
-  }, [saveData.selectedSkinIdBase, saveData.selectedSkinIdOverlay]);
+  }, [baseSkin, overlaySkin]);
 
   // Active Hat Definition
   const activeHat = useMemo(() => {
@@ -1260,6 +1267,7 @@ export default function App() {
             energy={saveData.energy}
             maxEnergy={currentMaxEnergy}
             activeSkin={combinedSkin}
+            overlaySkin={overlaySkin}
             activeHat={activeHat}
             customConfig={saveData.customCapybara}
             perks={saveData.perks || {}}
@@ -1800,6 +1808,7 @@ export default function App() {
                 ? prev.unlockedSkinIds
                 : [...prev.unlockedSkinIds, skinId],
               selectedSkinId: skinId,
+              selectedSkinIdBase: skinId,
             }));
           }}
         />
@@ -1820,6 +1829,7 @@ export default function App() {
           perks={saveData.perks || {}}
           dealStats={saveData.dealStats || { dealsWon: 0, dealsLost: 0 }}
           unlockedSecretEvents={saveData.unlockedSecretEvents || []}
+          customConfig={saveData.customCapybara}
           onSelectSkinBase={(id: string) => setSaveData((prev) => ({ ...prev, selectedSkinIdBase: id }))}
           onSelectSkinOverlay={(id: string) => setSaveData((prev) => ({ ...prev, selectedSkinIdOverlay: id }))}
           onBuySkin={(skin: CharacterSkin) => {

@@ -4,7 +4,7 @@ import {
   User, X, Check, Award, History, TrendingUp, TrendingDown, Sparkles, 
   Users, Radio, Globe, Shield, Skull
 } from 'lucide-react';
-import { DealOpponent, CharacterSkin, CharacterHat, DealHistoryItem, LossDebuff } from '../types/game';
+import { DealOpponent, CharacterSkin, CharacterHat, DealHistoryItem, LossDebuff, CustomCapybaraConfig } from '../types/game';
 import { CHARACTER_SKINS, CHARACTER_HATS } from '../data/skins';
 import { computeCharacterComposite, SoulslikeStats } from '../utils/characterComposite';
 import { CharacterFighterVisual } from './CharacterFighterVisual';
@@ -20,9 +20,12 @@ interface DealModalProps {
   playerLevel: number;
   playerCoins: number;
   playerName: string;
-  selectedSkinId: string;
+  selectedSkinId?: string;
+  selectedSkinIdBase?: string;
+  selectedSkinIdOverlay?: string;
   selectedHatId: string;
   perks: Record<string, number>;
+  customConfig?: CustomCapybaraConfig;
   dealStats: {
     dealsWon: number;
     dealsLost: number;
@@ -50,8 +53,11 @@ export const DealModal: React.FC<DealModalProps> = ({
   playerCoins,
   playerName,
   selectedSkinId,
+  selectedSkinIdBase,
+  selectedSkinIdOverlay,
   selectedHatId,
   perks,
+  customConfig,
   dealStats,
   dealHistory = [],
   immortalUnlocked = false,
@@ -65,7 +71,10 @@ export const DealModal: React.FC<DealModalProps> = ({
   const [selectedOpponent, setSelectedOpponent] = useState<DealOpponent | null>(null);
 
   // User Player Visual Stats
-  const playerSkin = CHARACTER_SKINS.find((s) => s.id === selectedSkinId) || CHARACTER_SKINS[0];
+  const actualSkinId = selectedSkinIdBase || selectedSkinId || 'skin_default';
+  const playerSkin = CHARACTER_SKINS.find((s) => s.id === actualSkinId) || CHARACTER_SKINS[0];
+  const overlaySkinId = selectedSkinIdOverlay;
+  const playerOverlaySkin = overlaySkinId && overlaySkinId !== actualSkinId ? CHARACTER_SKINS.find((s) => s.id === overlaySkinId) : undefined;
   const playerHat = CHARACTER_HATS.find((h) => h.id === selectedHatId) || CHARACTER_HATS[0];
   const playerStats = computeCharacterComposite(playerSkin, playerHat, perks, playerLevel, immortalUnlocked);
 
@@ -541,8 +550,10 @@ export const DealModal: React.FC<DealModalProps> = ({
                 <div className="flex flex-col items-center">
                   <CharacterFighterVisual
                     skin={playerSkin}
+                    overlaySkin={playerOverlaySkin}
                     hat={playerHat}
                     stats={playerStats}
+                    customConfig={customConfig}
                     side="left"
                     size="md"
                     name={playerName}
@@ -811,8 +822,10 @@ export const DealModal: React.FC<DealModalProps> = ({
                 <div className="flex flex-col items-center">
                   <CharacterFighterVisual
                     skin={playerSkin}
+                    overlaySkin={playerOverlaySkin}
                     hat={playerHat}
                     stats={playerStats}
+                    customConfig={customConfig}
                     side="left"
                     size="lg"
                     isAttacking={userAttacking}

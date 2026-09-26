@@ -38,6 +38,7 @@ interface MainTapperProps {
   energy: number;
   maxEnergy: number;
   activeSkin?: CharacterSkin;
+  overlaySkin?: CharacterSkin;
   activeHat?: CharacterHat;
   customConfig?: CustomCapybaraConfig;
   perks?: Record<string, number>;
@@ -93,6 +94,7 @@ export const MainTapper: React.FC<MainTapperProps> = ({
   energy,
   maxEnergy,
   activeSkin,
+  overlaySkin,
   activeHat,
   customConfig,
   perks = {},
@@ -401,10 +403,10 @@ export const MainTapper: React.FC<MainTapperProps> = ({
       <div className="w-full flex items-center justify-between gap-2 px-1 mb-1">
         <button
           onClick={onOpenCharacterModal}
-          className="flex items-center gap-2 p-1.5 pr-2.5 rounded-2xl bg-zinc-900/90 border border-amber-500/40 shadow-sm hover:border-amber-400 transition-all active:scale-95 max-w-[135px] sm:max-w-[160px] min-w-0"
+          className="flex items-center gap-2 p-1.5 pr-2.5 rounded-2xl bg-zinc-900/90 border border-amber-500/40 shadow-sm hover:border-amber-400 transition-all active:scale-95 max-w-[145px] sm:max-w-[170px] min-w-0"
         >
-          <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-lg shrink-0">
-            {compositeDisplay.bodyIcon}
+          <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-base shrink-0">
+            {overlaySkin && overlaySkin.id !== resolvedSkin.id ? `${resolvedSkin.icon}${overlaySkin.icon}` : compositeDisplay.bodyIcon}
           </div>
           <div className="text-left min-w-0 flex-1">
             <div className="text-[8px] font-black uppercase text-amber-400 truncate">
@@ -413,6 +415,11 @@ export const MainTapper: React.FC<MainTapperProps> = ({
             <div className="text-[10px] font-extrabold text-white leading-none truncate mt-0.5">
               {resolvedSkin.name}
             </div>
+            {overlaySkin && overlaySkin.id !== resolvedSkin.id && (
+              <div className="text-[8px] font-bold text-purple-300 leading-none truncate mt-0.5">
+                ✨ +{overlaySkin.name}
+              </div>
+            )}
           </div>
         </button>
 
@@ -664,6 +671,7 @@ export const MainTapper: React.FC<MainTapperProps> = ({
             <div className={`transition-transform duration-75 ${isPressed ? 'scale-90 rotate-2' : 'scale-100'}`}>
               <CharacterFighterVisual
                 skin={resolvedSkin}
+                overlaySkin={overlaySkin}
                 hat={resolvedHat}
                 stats={compositeStats}
                 customConfig={customConfig}
@@ -673,7 +681,13 @@ export const MainTapper: React.FC<MainTapperProps> = ({
               />
             </div>
             <span className="text-[11px] font-black uppercase tracking-wider text-amber-300/90 mt-0.5 drop-shadow-md">
-              {isOutOfEnergy ? 'НЕТ ЭНЕРГИИ ⚡' : isFeverActive ? '⚡ МЕГА-ТАП! ⚡' : 'ТАПАЙ!'}
+              {isOutOfEnergy
+                ? 'НЕТ ЭНЕРГИИ ⚡'
+                : isFeverActive
+                ? '⚡ МЕГА-ТАП! ⚡'
+                : overlaySkin && overlaySkin.id !== resolvedSkin.id
+                ? `⚡ ФУЗИЯ: ${resolvedSkin.name} + ${overlaySkin.name} ⚡`
+                : 'ТАПАЙ!'}
             </span>
           </div>
 

@@ -53,6 +53,7 @@ const SKIN_PORTRAIT_MAP: Record<string, string> = {
 interface CapybaraAvatarRendererProps {
   customConfig?: CustomCapybaraConfig;
   skin?: CharacterSkin;
+  overlaySkin?: CharacterSkin;
   hat?: CharacterHat;
   stats: SoulslikeStats;
   isAttacking?: boolean;
@@ -65,6 +66,7 @@ interface CapybaraAvatarRendererProps {
 export const CapybaraAvatarRenderer: React.FC<CapybaraAvatarRendererProps> = ({
   customConfig = DEFAULT_CUSTOM_CAPYBARA,
   skin,
+  overlaySkin,
   hat,
   stats,
   isAttacking = false,
@@ -120,7 +122,11 @@ export const CapybaraAvatarRenderer: React.FC<CapybaraAvatarRendererProps> = ({
     royal_curls: '👑',
   };
 
-  const skinId = currentSkin.id;
+  // Resolve base skin ID safely (handles composite IDs like skin_default_skin_spider_capy or baseSkinId)
+  const baseSkinId = currentSkin.baseSkinId || (currentSkin.id.includes('_') && !SKIN_PORTRAIT_MAP[currentSkin.id] ? currentSkin.id.split('_')[0] : currentSkin.id);
+  const overlaySkinId = overlaySkin?.id || currentSkin.overlaySkinId;
+  const isOverlayActive = Boolean(overlaySkinId && overlaySkinId !== baseSkinId && overlaySkinId !== 'skin_default' && SKIN_PORTRAIT_MAP[overlaySkinId]);
+
   const isMuscularBuild =
     stats.isMuscular ||
     stats.str >= 12 ||
@@ -128,10 +134,10 @@ export const CapybaraAvatarRenderer: React.FC<CapybaraAvatarRendererProps> = ({
     stats.archetypeTitle.toLowerCase().includes('качок') ||
     stats.archetypeTitle.toLowerCase().includes('колосс');
 
-  let portraitImg = SKIN_PORTRAIT_MAP[skinId];
+  let portraitImg = SKIN_PORTRAIT_MAP[baseSkinId] || SKIN_PORTRAIT_MAP[currentSkin.id];
 
   // Dynamic image switching based on build mutations if default skin or muscle skin
-  if (skinId === 'skin_default' || skinId === 'skin_muscle_mutant') {
+  if (baseSkinId === 'skin_default' || baseSkinId === 'skin_muscle_mutant') {
     if (isMuscularBuild) {
       portraitImg = capyMuscleImg;
     } else if (stats.hasSheikhGold || stats.archetypeTitle.toLowerCase().includes('шейх')) {
@@ -143,13 +149,15 @@ export const CapybaraAvatarRenderer: React.FC<CapybaraAvatarRendererProps> = ({
     }
   }
 
-  if (isMuscularBuild && skinId === 'skin_default') {
+  if (isMuscularBuild && baseSkinId === 'skin_default') {
     portraitImg = capyMuscleImg;
   }
 
   if (!portraitImg) {
     portraitImg = capyClassicImg;
   }
+
+  const overlayPortraitImg = isOverlayActive && overlaySkinId ? SKIN_PORTRAIT_MAP[overlaySkinId] : null;
 
   return (
     <div
@@ -218,8 +226,36 @@ export const CapybaraAvatarRenderer: React.FC<CapybaraAvatarRendererProps> = ({
           className="w-full h-full object-cover rounded-3xl transform hover:scale-105 transition-transform duration-300"
         />
 
+        {/* Dynamic Overlay Skin Fusion Layer (Split Dual Portrait) */}
+        {isOverlayActive && overlayPortraitImg && (
+          <div
+            className="absolute inset-0 z-15 overflow-hidden rounded-3xl pointer-events-none"
+            style={{
+              clipPath: 'polygon(42% 0, 100% 0, 100% 100%, 20% 100%)',
+            }}
+          >
+            <img
+              src={overlayPortraitImg}
+              alt="Overlay Fusion Skin"
+              className="w-full h-full object-cover filter contrast-110 saturate-110"
+            />
+            {/* Holographic energy wave & glowing separator laser seam */}
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/25 via-cyan-400/10 to-transparent mix-blend-overlay" />
+            <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-cyan-300 via-amber-300 to-purple-400 shadow-[0_0_12px_rgba(34,211,238,0.9)]" />
+          </div>
+        )}
+
         {/* Dynamic Shader Glow & Overlay */}
         <div className="absolute inset-0 rounded-3xl bg-gradient-to-t from-black/70 via-transparent to-black/10 pointer-events-none" />
+
+        {/* Fusion Overlay Badge */}
+        {isOverlayActive && (
+          <div className="absolute top-1.5 left-1.5 z-30 flex items-center gap-1 bg-purple-950/90 border border-purple-400 text-purple-200 text-[8px] font-black px-1.5 py-0.5 rounded-md shadow-lg backdrop-blur-sm animate-pulse">
+            <span>✨</span>
+            <span>{overlaySkin?.icon || currentSkin.overlayIcon || '🎭'}</span>
+            <span className="hidden sm:inline">НАЛОЖЕНИЕ</span>
+          </div>
+        )}
 
         {/* Muscular Muscle Mutation Bicep Badge */}
         {isMuscularBuild && (

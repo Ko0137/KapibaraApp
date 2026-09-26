@@ -67,6 +67,10 @@ export interface CharacterSkin {
   isSecret?: boolean;
   secretHint?: string;
   universe?: 'marvel' | 'dc' | 'gaming' | 'classic' | 'anime';
+  baseSkinId?: string;
+  overlaySkinId?: string;
+  overlayIcon?: string;
+  overlayName?: string;
 }
 
 export interface CharacterHat {
