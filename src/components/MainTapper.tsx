@@ -158,7 +158,7 @@ export const MainTapper: React.FC<MainTapperProps> = ({
     setAdLoading(true);
 
     try {
-      const adController = window.Adsgram.init({ blockId: '47350' });
+      const adController = window.Adsgram.init({ blockId: '50138' });
       adController
         .show()
         .then(() => {
