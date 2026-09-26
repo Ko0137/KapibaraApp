@@ -3,6 +3,7 @@ import { GameLevel } from '../types/game';
 import { formatNumber } from '../utils/format';
 import { sound } from '../utils/audio';
 import { hapticEffects } from '../utils/haptics';
+import { CHARACTER_SKINS } from '../data/skins';
 
 // Import boss portraits
 import bossLazySloth from '../assets/images/boss_lazy_sloth_1790410146391.jpg';
@@ -233,7 +234,7 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
               />
             ) : (
               <span className={`text-7xl transition-transform ${isBossHurt ? 'rotate-6 scale-95' : 'scale-100'}`}>
-                {bossLevel.icon}
+                {bossLevel.bossSkinId ? CHARACTER_SKINS.find(s => s.id === bossLevel.bossSkinId)?.icon : bossLevel.icon}
               </span>
             )}
 

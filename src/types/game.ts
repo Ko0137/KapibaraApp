@@ -23,6 +23,7 @@ export interface GameLevel {
   bossName?: string;
   quote?: string;
   tier?: LevelTier;
+  bossSkinId?: string;
 }
 
 export interface UpgradeItem {

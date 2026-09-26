@@ -544,6 +544,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
             {/* Skins List */}
             <div className="space-y-2">
               {filteredSkins.map((skin) => {
+                const isUnlocked = unlockedSkinIds.includes(skin.id);
                 const isSelectedBase = selectedSkinIdBase === skin.id;
                 const isSelectedOverlay = selectedSkinIdOverlay === skin.id;
                 const isSelected = isSelectedBase || isSelectedOverlay;

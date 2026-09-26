@@ -288,7 +288,8 @@ LEVEL_TEMPLATES.forEach((tmpl, idx) => {
     bossTimeLimit,
     bossName: tmpl.bossName || `Босс уровня ${levelNum}`,
     quote: tmpl.quote,
-    tier: 'mortal'
+    tier: 'mortal',
+    bossSkinId: levelNum === 10 ? 'skin_toxic_ooze' : (levelNum === 15 ? 'skin_muscle_mutant' : undefined)
   });
 });
 
@@ -319,6 +320,13 @@ DIVINE_LEVEL_NAMES.forEach((name, idx) => {
     divIndex === 50 ? 'Демиург Эфирного Пламени 🔥' :
     `Божественный Страж ${divIndex}-го Неба ⚡`
   ) : undefined;
+  
+  const bossSkinId = isBoss ? (
+    divIndex === 100 ? 'skin_god_capy' :
+    divIndex === 90 ? 'skin_gentleman_capy' :
+    divIndex === 50 ? 'skin_toxic_ooze' :
+    'skin_samurai_capy'
+  ) : undefined;
 
   GAME_LEVELS.push({
     level: levelNum,
@@ -334,7 +342,8 @@ DIVINE_LEVEL_NAMES.forEach((name, idx) => {
     bossTimeLimit,
     bossName,
     quote: isBoss ? 'Трепещи, смертный! Перед тобой сила Божественного Пантеона!' : undefined,
-    tier: 'divine'
+    tier: 'divine',
+    bossSkinId
   });
 });
 
@@ -365,6 +374,13 @@ IMMORTAL_LEVEL_NAMES.forEach((name, idx) => {
     immIndex === 30 ? 'Изначальный Дракон Пустоты 🐲' :
     `Бессмертный Хранитель Бездны ${immIndex} 💀`
   ) : undefined;
+  
+  const bossSkinId = isBoss ? (
+    immIndex === 60 ? 'skin_god_capy' :
+    immIndex === 50 ? 'skin_cyber_capy' :
+    immIndex === 30 ? 'skin_toxic_ooze' :
+    'skin_samurai_capy'
+  ) : undefined;
 
   GAME_LEVELS.push({
     level: levelNum,
@@ -380,7 +396,8 @@ IMMORTAL_LEVEL_NAMES.forEach((name, idx) => {
     bossTimeLimit,
     bossName,
     quote: isBoss ? 'Твое время истекло в бесконечности пустоты!' : undefined,
-    tier: 'immortal'
+    tier: 'immortal',
+    bossSkinId
   });
 });
 
