@@ -4,6 +4,31 @@ import { formatNumber } from '../utils/format';
 import { sound } from '../utils/audio';
 import { hapticEffects } from '../utils/haptics';
 
+// Import boss portraits
+import bossLazySloth from '../assets/images/boss_lazy_sloth_1790410146391.jpg';
+import bossNoodleTitan from '../assets/images/boss_noodle_titan_1790410159541.jpg';
+import bossYardExpert from '../assets/images/boss_yard_expert_1790410172429.jpg';
+import bossOvertimeLord from '../assets/images/boss_overtime_lord_1790410187735.jpg';
+import bossNightThinker from '../assets/images/boss_night_thinker_1790410202532.jpg';
+import bossSkynet3000 from '../assets/images/boss_skynet_3000_1790410218654.jpg';
+import bossMechaGodzilla from '../assets/images/boss_mecha_godzilla_1790410230728.jpg';
+import bossVoidEater from '../assets/images/boss_void_eater_1790410244459.jpg';
+import bossInsomniaLord from '../assets/images/boss_insomnia_lord_1790410257338.jpg';
+import bossBalanceCreator from '../assets/images/boss_balance_creator_1790410270827.jpg';
+
+const BOSS_PORTRAITS: Record<string, string> = {
+  'Будильник Судного Дня': bossLazySloth,
+  'Лапшичный Титан': bossNoodleTitan,
+  'Главный Эксперт Двора': bossYardExpert,
+  'Повелитель Овертаймов': bossOvertimeLord,
+  'Ночной Мыслитель': bossNightThinker,
+  'Суперкомпьютер Скайнет-3000': bossSkynet3000,
+  'Титанический Мехазавр': bossMechaGodzilla,
+  'Пожиратель Орбит': bossVoidEater,
+  'Повелитель Бессонницы': bossInsomniaLord,
+  'Создатель Баланса': bossBalanceCreator,
+};
+
 interface BossBattleModalProps {
   bossLevel: GameLevel;
   tapPower: number;
@@ -111,6 +136,8 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
   const hpPercent = Math.max(0, Math.min(100, Math.round((currentHp / maxHp) * 100)));
   const timePercent = Math.max(0, Math.min(100, (timeLeft / totalTime) * 100));
 
+  const bossPortrait = BOSS_PORTRAITS[bossLevel.bossName || ''];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in select-none">
       <div className="relative w-full max-w-md bg-gradient-to-b from-slate-900 via-slate-900 to-red-950/40 border-2 border-red-500/60 rounded-3xl p-6 shadow-2xl shadow-red-950/60 text-center">
@@ -176,15 +203,23 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
         <div className="relative flex flex-col items-center justify-center my-4">
           <div
             onPointerDown={handleBossTap}
-            className={`relative flex items-center justify-center w-48 h-48 rounded-full border-4 cursor-pointer transition-transform duration-75 active:scale-90 ${
+            className={`relative flex items-center justify-center w-48 h-48 rounded-full border-4 cursor-pointer transition-transform duration-75 active:scale-90 overflow-hidden ${
               isBossHurt
-                ? 'scale-90 border-red-500 bg-red-900/60 shadow-lg shadow-red-500/80'
-                : 'border-red-600/70 bg-gradient-to-b from-slate-900 to-red-950 shadow-2xl'
+                ? 'scale-90 border-red-500 shadow-lg shadow-red-500/80'
+                : 'border-red-600/70 shadow-2xl'
             }`}
           >
-            <span className={`text-7xl transition-transform ${isBossHurt ? 'rotate-6 scale-95' : 'scale-100'}`}>
-              {bossLevel.icon}
-            </span>
+            {bossPortrait ? (
+              <img 
+                src={bossPortrait} 
+                alt={bossLevel.bossName}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className={`text-7xl transition-transform ${isBossHurt ? 'rotate-6 scale-95' : 'scale-100'}`}>
+                {bossLevel.icon}
+              </span>
+            )}
 
             {/* Damage numbers */}
             {recentDamage.map(d => (
@@ -234,3 +269,4 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
     </div>
   );
 };
+
