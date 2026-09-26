@@ -262,10 +262,26 @@ export default function App() {
     return GAME_LEVELS[lvlIndex] || GAME_LEVELS[0];
   }, [saveData.level]);
 
-  // Active Skin Definition
-  const activeSkin = useMemo(() => {
-    return CHARACTER_SKINS.find((s) => s.id === saveData.selectedSkinId) || CHARACTER_SKINS[0];
-  }, [saveData.selectedSkinId]);
+  // Combined Skin Logic
+  const combinedSkin = useMemo(() => {
+    const base = CHARACTER_SKINS.find((s) => s.id === saveData.selectedSkinIdBase) || CHARACTER_SKINS[0];
+    const overlay = CHARACTER_SKINS.find((s) => s.id === saveData.selectedSkinIdOverlay) || CHARACTER_SKINS[0];
+    
+    // Combine names and icons
+    const combinedName = base.id === overlay.id ? base.name : `${base.name} + ${overlay.name}`;
+    const combinedIcon = base.id === overlay.id ? base.icon : `✨${base.icon}`; // Simple visual indicator
+    
+    // Combine bonuses (simple sum)
+    const combinedBonusValue = base.bonusValue + (base.id !== overlay.id ? overlay.bonusValue * 0.5 : 0);
+    
+    return {
+      ...base,
+      name: combinedName,
+      icon: combinedIcon,
+      bonusValue: combinedBonusValue,
+      id: `${base.id}_${overlay.id}`,
+    };
+  }, [saveData.selectedSkinIdBase, saveData.selectedSkinIdOverlay]);
 
   // Active Hat Definition
   const activeHat = useMemo(() => {
@@ -327,12 +343,12 @@ export default function App() {
     });
 
     // Active Skin bonus
-    if (activeSkin) {
-      if (activeSkin.bonusType === 'tap_power') tapPower *= 1 + activeSkin.bonusValue;
-      if (activeSkin.bonusType === 'idle_income') idleIncome *= 1 + activeSkin.bonusValue;
-      if (activeSkin.bonusType === 'crit') critChance += activeSkin.bonusValue * 100;
-      if (activeSkin.bonusType === 'energy_regen') energyRegenRate += Math.round(activeSkin.bonusValue * 4);
-      if (activeSkin.id === 'skin_cyber') maxEnergyBonus += 1000;
+    if (combinedSkin) {
+      if (combinedSkin.bonusType === 'tap_power') tapPower *= 1 + combinedSkin.bonusValue;
+      if (combinedSkin.bonusType === 'idle_income') idleIncome *= 1 + combinedSkin.bonusValue;
+      if (combinedSkin.bonusType === 'crit') critChance += combinedSkin.bonusValue * 100;
+      if (combinedSkin.bonusType === 'energy_regen') energyRegenRate += Math.round(combinedSkin.bonusValue * 4);
+      if (combinedSkin.id.includes('skin_cyber')) maxEnergyBonus += 1000;
     }
 
     // Perks Mastery Bonuses
@@ -1129,7 +1145,7 @@ export default function App() {
             className="flex items-center gap-2 bg-zinc-900 border border-zinc-700/80 px-2.5 py-1 rounded-2xl hover:border-amber-500/50 transition-colors"
           >
             <div className="w-7 h-7 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-lg">
-              {activeSkin.icon}
+              {combinedSkin.icon}
             </div>
             <div className="text-left">
               <span className="font-extrabold text-xs text-white block leading-tight truncate max-w-[90px]">
@@ -1243,7 +1259,7 @@ export default function App() {
             goldenTapChance={calculatedStats.goldenTapChance}
             energy={saveData.energy}
             maxEnergy={currentMaxEnergy}
-            activeSkin={activeSkin}
+            activeSkin={combinedSkin}
             activeHat={activeHat}
             customConfig={saveData.customCapybara}
             perks={saveData.perks || {}}

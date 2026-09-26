@@ -276,7 +276,8 @@ export interface GameSaveData {
   upgrades: Record<string, number>;
   artifacts: Record<string, number>;
   cards: Record<string, number>; // cardId -> level
-  selectedSkinId: string;
+  selectedSkinIdBase: string;
+  selectedSkinIdOverlay: string;
   unlockedSkinIds: string[];
   selectedHatId: string;
   unlockedHatIds: string[];
