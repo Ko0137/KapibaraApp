@@ -23,6 +23,7 @@ import capyThorImg from '../assets/images/capy_thor_portrait_1790408298370.jpg';
 import capyJokerImg from '../assets/images/capy_joker_portrait_1790408317750.jpg';
 import capyStrangeImg from '../assets/images/capy_strange_portrait_1790408341443.jpg';
 import capyVenomImg from '../assets/images/capy_venom_portrait_1790408443804.jpg';
+import capyWitcherImg from '../assets/images/capy_witcher_portrait_1790409172843.jpg';
 
 const SKIN_PORTRAIT_MAP: Record<string, string> = {
   skin_default: capyClassicImg,
@@ -45,6 +46,7 @@ const SKIN_PORTRAIT_MAP: Record<string, string> = {
   skin_joker_capy: capyJokerImg,
   skin_dr_strange_capy: capyStrangeImg,
   skin_venom_capy: capyVenomImg,
+  skin_witcher_capy: capyWitcherImg,
 };
 
 
