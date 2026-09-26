@@ -4,11 +4,14 @@ import { SoulslikeStats, getCompositeAvatarDisplay } from '../utils/characterCom
 import { DEFAULT_CUSTOM_CAPYBARA } from '../data/customizerOptions';
 
 import capyClassicImg from '../assets/images/capy_classic_1790339011736.jpg';
-import capyGentlemanImg from '../assets/images/capy_gentleman_1790339112719.jpg';
-import capySheikhImg from '../assets/images/capy_sheikh_1790339129520.jpg';
-import capyMuscleImg from '../assets/images/capy_muscle_1790339144067.jpg';
+import capyGentlemanImg from '../assets/images/capy_gentleman_portrait_1790408815618.jpg';
+import capySheikhImg from '../assets/images/capy_sheikh_portrait_1790408835368.jpg';
+import capyMuscleImg from '../assets/images/capy_muscle_portrait_1790408851572.jpg';
+import capyToxicImg from '../assets/images/capy_toxic_portrait_1790408867839.jpg';
 import capyCyberImg from '../assets/images/capy_cyber_1790339162589.jpg';
 import capySamuraiImg from '../assets/images/capy_samurai_1790339185479.jpg';
+import capyPelmenImg from '../assets/images/capy_pelmen_portrait_1790408886021.jpg';
+import capyGodImg from '../assets/images/capy_god_portrait_1790408905950.jpg';
 
 import capyAssassinImg from '../assets/images/capy_assassin_portrait_1790408208592.jpg';
 import capySpiderImg from '../assets/images/capy_spider_portrait_1790408223864.jpg';
@@ -26,9 +29,12 @@ const SKIN_PORTRAIT_MAP: Record<string, string> = {
   skin_gentleman_capy: capyGentlemanImg,
   skin_sheikh_capy: capySheikhImg,
   skin_muscle_mutant: capyMuscleImg,
+  skin_toxic_ooze: capyToxicImg,
   skin_cyber_capy: capyCyberImg,
   skin_cyberpunk_2077: capyCyberImg,
   skin_samurai_capy: capySamuraiImg,
+  skin_pelmen_shlepa: capyPelmenImg,
+  skin_god_capy: capyGodImg,
   skin_assassin_capy: capyAssassinImg,
   skin_spider_capy: capySpiderImg,
   skin_wolverine_capy: capyWolverineImg,
@@ -40,6 +46,7 @@ const SKIN_PORTRAIT_MAP: Record<string, string> = {
   skin_dr_strange_capy: capyStrangeImg,
   skin_venom_capy: capyVenomImg,
 };
+
 
 interface CapybaraAvatarRendererProps {
   customConfig?: CustomCapybaraConfig;
