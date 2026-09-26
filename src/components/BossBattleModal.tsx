@@ -118,8 +118,7 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
         sound.playBossVictory();
         hapticEffects.bossDefeat();
 
-        // Launch celebratory confetti
-        
+
         const rewardCoins = bossLevel.rewardCoins * 3;
         const rewardGems = bossLevel.rewardGems * 2;
 

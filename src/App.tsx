@@ -53,7 +53,7 @@ import { ResetPerksModal } from './components/ResetPerksModal';
 import { SecretEventsModal } from './components/SecretEventsModal';
 import { initTelegramApp, TelegramUser } from './utils/telegram';
 import { NotificationToast, AppNotification } from './components/NotificationToast';
-import confetti from 'canvas-confetti';
+
 
 // Telegram navigation tabs
 type MainTab = 'tap' | 'mine' | 'combo' | 'deal' | 'character' | 'upgrades' | 'airdrop';
@@ -498,7 +498,7 @@ export default function App() {
     (extraCoins = 0, extraGems = 0, extraPerkPoints = 0) => {
       sound.playLevelUp();
       hapticEffects.levelUp();
-      confetti({ particleCount: 90, spread: 70, origin: { y: 0.5 } });
+
 
       setSaveData((prev) => {
         const nextLevel = Math.min(GAME_LEVELS.length, prev.level + 1);
@@ -897,7 +897,7 @@ export default function App() {
     if (shardsEarned <= 0) return;
 
     hapticEffects.prestigeReset();
-    confetti({ particleCount: 150, spread: 100 });
+
 
     setSaveData((prev) => ({
       ...prev,
@@ -1008,7 +1008,7 @@ export default function App() {
   // Golden Dumpling Collect
   const handleCollectDumpling = (type: 'coins' | 'frenzy') => {
     hapticEffects.goldenCatch();
-    confetti({ particleCount: 50, spread: 50 });
+
 
     setSaveData((prev) => {
       const updatedQuests = prev.quests.map((q) => {
