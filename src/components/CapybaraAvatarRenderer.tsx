@@ -10,14 +10,35 @@ import capyMuscleImg from '../assets/images/capy_muscle_1790339144067.jpg';
 import capyCyberImg from '../assets/images/capy_cyber_1790339162589.jpg';
 import capySamuraiImg from '../assets/images/capy_samurai_1790339185479.jpg';
 
+import capyAssassinImg from '../assets/images/capy_assassin_portrait_1790408208592.jpg';
+import capySpiderImg from '../assets/images/capy_spider_portrait_1790408223864.jpg';
+import capyWolverineImg from '../assets/images/capy_wolverine_portrait_1790408236440.jpg';
+import capyDeadpoolImg from '../assets/images/capy_deadpool_portrait_1790408253382.jpg';
+import capyBatmanImg from '../assets/images/capy_batman_portrait_1790408269147.jpg';
+import capyIronmanImg from '../assets/images/capy_ironman_portrait_1790408284062.jpg';
+import capyThorImg from '../assets/images/capy_thor_portrait_1790408298370.jpg';
+import capyJokerImg from '../assets/images/capy_joker_portrait_1790408317750.jpg';
+import capyStrangeImg from '../assets/images/capy_strange_portrait_1790408341443.jpg';
+import capyVenomImg from '../assets/images/capy_venom_portrait_1790408443804.jpg';
+
 const SKIN_PORTRAIT_MAP: Record<string, string> = {
   skin_default: capyClassicImg,
   skin_gentleman_capy: capyGentlemanImg,
   skin_sheikh_capy: capySheikhImg,
   skin_muscle_mutant: capyMuscleImg,
   skin_cyber_capy: capyCyberImg,
-  skin_cyberpunk_2077: capyCyberImg, // Keeping existing logic for now
+  skin_cyberpunk_2077: capyCyberImg,
   skin_samurai_capy: capySamuraiImg,
+  skin_assassin_capy: capyAssassinImg,
+  skin_spider_capy: capySpiderImg,
+  skin_wolverine_capy: capyWolverineImg,
+  skin_deadpool_capy: capyDeadpoolImg,
+  skin_batman_capy: capyBatmanImg,
+  skin_iron_capy: capyIronmanImg,
+  skin_thor_capy: capyThorImg,
+  skin_joker_capy: capyJokerImg,
+  skin_dr_strange_capy: capyStrangeImg,
+  skin_venom_capy: capyVenomImg,
 };
 
 interface CapybaraAvatarRendererProps {
