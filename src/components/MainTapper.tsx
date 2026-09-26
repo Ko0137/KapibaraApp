@@ -316,7 +316,7 @@ export const MainTapper: React.FC<MainTapperProps> = ({
     earned = Math.max(1, Math.round(earned));
 
     // Audio & Haptics feedback
-    sound.playTap(isCrit, isFeverActive || !!isNeuromuscularActive);
+    // sound.playTap(isCrit, isFeverActive || !!isNeuromuscularActive);
     if (isCrit || isNeuromuscularActive) {
       hapticEffects.crit();
     } else {
