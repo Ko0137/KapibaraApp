@@ -1,5 +1,4 @@
 import React from 'react';
-import confetti from 'canvas-confetti';
 import { Sparkles, CheckCircle2, Lock, Gift, Zap } from 'lucide-react';
 import { HAMSTER_CARDS, DAILY_COMBO_CARD_IDS, DAILY_COMBO_REWARD_COINS } from '../data/cards';
 import { formatNumber } from '../utils/format';
@@ -42,7 +41,6 @@ export const DailyComboModal: React.FC<DailyComboModalProps> = ({
     if (!isReadyToClaim) return;
     hapticEffects.bossDefeat();
     sound.playLevelUp();
-    confetti({ particleCount: 160, spread: 90, origin: { y: 0.6 } });
     onClaimDailyCombo();
   };
 

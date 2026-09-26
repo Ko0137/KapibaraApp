@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import confetti from 'canvas-confetti';
 import { 
   Swords, ShieldAlert, Trophy, Zap, AlertTriangle, Flame, Clock, 
   User, X, Check, Award, History, TrendingUp, TrendingDown, Sparkles, 
@@ -315,11 +314,6 @@ export const DealModal: React.FC<DealModalProps> = ({
     if (won) {
       sound.playLevelUp();
       sound.playComboSuccess();
-      confetti({
-        particleCount: 100,
-        spread: 80,
-        origin: { y: 0.6 },
-      });
     } else {
       sound.playWarning();
       sound.playError();

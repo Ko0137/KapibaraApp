@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import confetti from 'canvas-confetti';
 import {
   GameSaveData,
   GameLevel,
@@ -191,8 +190,8 @@ export default function App() {
 
     setTimeout(() => {
       setIsNeuromuscularActive(false);
-      setNeuromuscularCooldown(30);
-      addNotification('⚡ Нейро-Тап Перезаряжается', 'Перезарядка 30 секунд...', 'info', '⏳');
+      setNeuromuscularCooldown(3600);
+      addNotification('⚡ Нейро-Тап Перезаряжается', 'Перезарядка 1 час...', 'info', '⏳');
     }, 12000);
   }, [isNeuromuscularActive, neuromuscularCooldown, addNotification]);
 
