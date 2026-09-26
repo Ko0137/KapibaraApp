@@ -17,16 +17,33 @@ import bossInsomniaLord from '../assets/images/boss_insomnia_lord_1790410257338.
 import bossBalanceCreator from '../assets/images/boss_balance_creator_1790410270827.jpg';
 
 const BOSS_PORTRAITS: Record<string, string> = {
-  'Будильник Судного Дня': bossLazySloth,
-  'Лапшичный Титан': bossNoodleTitan,
-  'Главный Эксперт Двора': bossYardExpert,
-  'Повелитель Овертаймов': bossOvertimeLord,
-  'Ночной Мыслитель': bossNightThinker,
-  'Суперкомпьютер Скайнет-3000': bossSkynet3000,
+  // Existing
+  'Владыка Первобытной Лени': bossLazySloth,
+  'Левиафан Первородных Вод': bossNoodleTitan,
+  'Будильник Судного Дня': bossYardExpert,
+  'Лапшичный Титан': bossOvertimeLord,
+  'Главный Эксперт Двора': bossNightThinker,
+  'Повелитель Овертаймов': bossSkynet3000,
+  'Ночной Мыслитель': bossMechaGodzilla,
+  'Суперкомпьютер Скайнет-3000': bossMechaGodzilla,
   'Титанический Мехазавр': bossMechaGodzilla,
   'Пожиратель Орбит': bossVoidEater,
   'Повелитель Бессонницы': bossInsomniaLord,
   'Создатель Баланса': bossBalanceCreator,
+  // New from levels.ts
+  'Космический Змей Орочи': bossVoidEater,
+  'Ктулху из Межгалактической Бездны': bossVoidEater,
+  'Демиург Симуляции': bossBalanceCreator,
+  'Вратарь 159-го Измерения': bossSkynet3000,
+  'Абсолютный Владыка Метавселенной': bossSkynet3000,
+  'Хранитель Грани Смертных': bossSkynet3000,
+  // Divine & Immortal bosses placeholders
+  'Архангел Судного Дня 🌟': bossBalanceCreator,
+  'Серафим Золотого Трона 👑': bossBalanceCreator,
+  'Демиург Эфирного Пламени 🔥': bossBalanceCreator,
+  'Владыка Первозданного Ничто 🌌': bossVoidEater,
+  'Пожиратель Квантовых Миров 🪐': bossVoidEater,
+  'Изначальный Дракон Пустоты 🐲': bossVoidEater,
 };
 
 interface BossBattleModalProps {
