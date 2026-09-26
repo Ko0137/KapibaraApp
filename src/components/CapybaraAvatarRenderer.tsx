@@ -12,13 +12,11 @@ import capySamuraiImg from '../assets/images/capy_samurai_1790339185479.jpg';
 
 const SKIN_PORTRAIT_MAP: Record<string, string> = {
   skin_default: capyClassicImg,
-  skin_gentleman: capyGentlemanImg,
   skin_gentleman_capy: capyGentlemanImg,
   skin_sheikh_capy: capySheikhImg,
-  skin_sheikh_al_maktum: capySheikhImg,
   skin_muscle_mutant: capyMuscleImg,
   skin_cyber_capy: capyCyberImg,
-  skin_cyberpunk_2077: capyCyberImg,
+  skin_cyberpunk_2077: capyCyberImg, // Keeping existing logic for now
   skin_samurai_capy: capySamuraiImg,
 };
 
