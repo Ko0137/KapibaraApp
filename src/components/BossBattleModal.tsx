@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import confetti from 'canvas-confetti';
 import { GameLevel } from '../types/game';
 import { formatNumber } from '../utils/format';
 import { sound } from '../utils/audio';
@@ -95,12 +94,7 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
         hapticEffects.bossDefeat();
 
         // Launch celebratory confetti
-        confetti({
-          particleCount: 120,
-          spread: 80,
-          origin: { y: 0.6 }
-        });
-
+        
         const rewardCoins = bossLevel.rewardCoins * 3;
         const rewardGems = bossLevel.rewardGems * 2;
 

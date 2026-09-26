@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import confetti from 'canvas-confetti';
 import { DailyQuest, DailyStreakDay } from '../types/game';
 import { DAILY_STREAK_REWARDS, LUCKY_WHEEL_ITEMS, getCurrentWeeklyWheelSkin } from '../data/upgrades';
 import { formatNumber, formatDurationHuman } from '../utils/format';
@@ -81,7 +80,6 @@ export const DailyRewardsModal: React.FC<DailyRewardsModalProps> = ({
       sound.playCoin();
 
       if (winningItem.type === 'jackpot') {
-        confetti({ particleCount: 100, spread: 70 });
       }
 
       onSpinWheel(winningItem, isFree ? 0 : 5);
@@ -187,7 +185,6 @@ export const DailyRewardsModal: React.FC<DailyRewardsModalProps> = ({
                           disabled={!canClaimDaily}
                           onClick={() => {
                             sound.playCoin();
-                            confetti({ particleCount: 80, spread: 60 });
                             onClaimDaily(item);
                           }}
                           className={`mt-2 py-2 px-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all ${
