@@ -410,7 +410,7 @@ export default function App() {
     saveData.perks,
     saveData.lossDebuff,
     profitPerHour,
-    activeSkin,
+    combinedSkin,
   ]);
 
   // Active boosts
@@ -1812,14 +1812,16 @@ export default function App() {
           playerLevel={saveData.level}
           playerCoins={saveData.coins}
           playerGems={saveData.gems}
-          selectedSkinId={saveData.selectedSkinId}
+          selectedSkinIdBase={saveData.selectedSkinIdBase}
+          selectedSkinIdOverlay={saveData.selectedSkinIdOverlay}
           unlockedSkinIds={saveData.unlockedSkinIds}
           selectedHatId={saveData.selectedHatId || 'hat_none'}
           unlockedHatIds={saveData.unlockedHatIds || ['hat_none']}
           perks={saveData.perks || {}}
           dealStats={saveData.dealStats || { dealsWon: 0, dealsLost: 0 }}
           unlockedSecretEvents={saveData.unlockedSecretEvents || []}
-          onSelectSkin={(id: string) => setSaveData((prev) => ({ ...prev, selectedSkinId: id }))}
+          onSelectSkinBase={(id: string) => setSaveData((prev) => ({ ...prev, selectedSkinIdBase: id }))}
+          onSelectSkinOverlay={(id: string) => setSaveData((prev) => ({ ...prev, selectedSkinIdOverlay: id }))}
           onBuySkin={(skin: CharacterSkin) => {
             const costCoins = skin.costCoins || 0;
             const costGems = skin.costGems || 0;
@@ -1828,7 +1830,7 @@ export default function App() {
               coins: prev.coins - costCoins,
               gems: prev.gems - costGems,
               unlockedSkinIds: [...prev.unlockedSkinIds, skin.id],
-              selectedSkinId: skin.id,
+              selectedSkinIdBase: skin.id,
             }));
           }}
           onSelectHat={handleSelectHat}
@@ -1851,7 +1853,8 @@ export default function App() {
           playerLevel={saveData.level}
           playerCoins={saveData.coins}
           playerName={saveData.playerName}
-          selectedSkinId={saveData.selectedSkinId}
+          selectedSkinIdBase={saveData.selectedSkinIdBase}
+          selectedSkinIdOverlay={saveData.selectedSkinIdOverlay}
           selectedHatId={saveData.selectedHatId || 'hat_none'}
           perks={saveData.perks || {}}
           dealStats={saveData.dealStats || {
