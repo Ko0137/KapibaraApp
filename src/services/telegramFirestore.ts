@@ -1,8 +1,8 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db, ensureAuthenticated } from './firebase';
+import { db, ensureAuthenticated, auth } from './firebase';
 import { GameSaveData } from '../types/game';
 
-// Recursive function to remove undefined values
+// Recursive function to remove undefined values for Firestore JSON compliance
 const removeUndefined = (obj: any): any => {
   if (typeof obj !== 'object' || obj === null) return obj;
   if (Array.isArray(obj)) return obj.map(removeUndefined);
@@ -13,26 +13,39 @@ const removeUndefined = (obj: any): any => {
   );
 };
 
-export const getTelegramUserId = (): string => {
+export const getTelegramUserId = (): string | null => {
   try {
     // @ts-ignore
-    return window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() || 'debug_user_123';
+    const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    return tgId ? tgId.toString() : null;
   } catch {
-    return 'debug_user_123';
+    return null;
   }
 };
+
+export interface AutoSaveStatus {
+  isSaving: boolean;
+  lastSavedAt: number | null;
+  success: boolean;
+  error?: string;
+}
+
+let lastSavePromise: Promise<boolean> | null = null;
 
 export const loadUserProgress = async (): Promise<GameSaveData | null> => {
   try {
     const user = await ensureAuthenticated();
     if (!user) {
-      console.warn("No user, skipping cloud load");
+      console.warn('No authenticated user for Firestore load');
       return null;
     }
+
     const docRef = doc(db, 'users', user.uid);
     const docSnap = await getDoc(docRef);
+
     if (docSnap.exists()) {
-      return docSnap.data() as GameSaveData;
+      const data = docSnap.data() as GameSaveData;
+      return data;
     }
   } catch (error) {
     console.error('Error loading progress from Firestore:', error);
@@ -40,20 +53,30 @@ export const loadUserProgress = async (): Promise<GameSaveData | null> => {
   return null;
 };
 
-export const saveUserProgress = async (data: GameSaveData): Promise<void> => {
+export const saveUserProgress = async (
+  data: GameSaveData
+): Promise<{ success: boolean; timestamp: number; error?: string }> => {
   try {
     const user = await ensureAuthenticated();
     if (!user) {
-      console.warn("No user, skipping cloud save");
-      return;
+      return { success: false, timestamp: Date.now(), error: 'Not authenticated' };
     }
+
     const docRef = doc(db, 'users', user.uid);
-    
+    const now = Date.now();
+
     // Deeply sanitize data: remove undefined values
-    const sanitizedData = removeUndefined({ ...data, lastSavedTimestamp: Date.now() });
-    
+    const sanitizedData = removeUndefined({
+      ...data,
+      lastSavedTimestamp: now,
+      cloudSyncVersion: 2,
+    });
+
     await setDoc(docRef, sanitizedData, { merge: true });
-  } catch (error) {
+
+    return { success: true, timestamp: now };
+  } catch (error: any) {
     console.error('Error saving progress to Firestore:', error);
+    return { success: false, timestamp: Date.now(), error: error?.message || 'Cloud save failed' };
   }
 };

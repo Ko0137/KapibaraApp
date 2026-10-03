@@ -27,10 +27,11 @@ import { evaluateSecretEvents } from './utils/secretEventsChecker';
 import { formatNumber, formatTimeSeconds } from './utils/format';
 import { sound } from './utils/audio';
 import { hapticEffects, isHapticsEnabled, setHapticsEnabled } from './utils/haptics';
-import { testFirestoreConnection } from './services/firebase';
+import { testFirestoreConnection, ensureAuthenticated } from './services/firebase';
 import { loadGameLocally, saveGameLocally, exportSaveString, importSaveString } from './services/cloudSave';
-import { saveUserProgress } from './services/telegramFirestore';
+import { saveUserProgress, loadUserProgress } from './services/telegramFirestore';
 import { saveToTelegramCloud, loadFromTelegramCloud } from './services/telegramCloud';
+import { updatePlayerPresence } from './services/multiplayerService';
 
 import { MainTapper } from './components/MainTapper';
 import { UpgradesPanel } from './components/UpgradesPanel';
@@ -60,43 +61,13 @@ type MainTab = 'tap' | 'mine' | 'combo' | 'deal' | 'character' | 'upgrades' | 'a
 
 export default function App() {
   const [saveData, setSaveData] = useState<GameSaveData>(() => loadGameLocally());
+  const [isCloudSaving, setIsCloudSaving] = useState(false);
+  const [lastCloudSaveTime, setLastCloudSaveTime] = useState<number | null>(null);
+  const [cloudSynced, setCloudSynced] = useState(false);
+  const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
+  const [isTelegram, setIsTelegram] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   
-  // Load and Autosave logic
-  useEffect(() => {
-    
-    // Load
-    const loadData = async () => {
-      const cloudData = await loadFromTelegramCloud();
-      if (cloudData) {
-        setSaveData(cloudData);
-      }
-    };
-    loadData();
-
-    // Autosave on visibility change
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        saveGameLocally(saveData);
-        saveToTelegramCloud(saveData);
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []); // Run once on mount
-
-  // Local save on every change
-  useEffect(() => {
-    saveGameLocally(saveData);
-  }, [saveData]);
-
-  // Background cloud sync
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      saveToTelegramCloud(saveData);
-    }, 2500); // Save every 2.5 seconds
-    return () => clearTimeout(timer);
-  }, [saveData]);
-
   const [currentTab, setCurrentTab] = useState<MainTab>('tap');
   const [activeModal, setActiveModal] = useState<
     | 'none'
@@ -132,14 +103,103 @@ export default function App() {
   // Cards category filter for Mine tab
   const [cardCategory, setCardCategory] = useState<'all' | 'memes' | 'pr' | 'legal' | 'tech' | 'specials'>('all');
 
-  // Telegram User & In-App Notification Toast state
-  const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
-  const [isTelegram, setIsTelegram] = useState(false);
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-
   // Neuromuscular Impulse Tap Mode state
   const [isNeuromuscularActive, setIsNeuromuscularActive] = useState(false);
   const [neuromuscularCooldown, setNeuromuscularCooldown] = useState(0);
+
+  // Load and Autosave logic
+  useEffect(() => {
+    let isMounted = true;
+    
+    const initCloudAndLoad = async () => {
+      try {
+        await ensureAuthenticated();
+        
+        // 1. Try Firestore cloud save first
+        const firestoreSave = await loadUserProgress();
+        // 2. Try Telegram Cloud storage
+        const tgCloudSave = await loadFromTelegramCloud();
+        
+        const localSave = loadGameLocally();
+        
+        // Pick the freshest save data
+        let freshest: GameSaveData | null = null;
+        const candidates = [firestoreSave, tgCloudSave, localSave].filter(Boolean) as GameSaveData[];
+        
+        if (candidates.length > 0) {
+          freshest = candidates.reduce((prev, curr) => {
+            const prevTime = prev.lastSavedTimestamp || 0;
+            const currTime = curr.lastSavedTimestamp || 0;
+            return currTime > prevTime ? curr : prev;
+          });
+        }
+        
+        if (freshest && isMounted) {
+          setSaveData(freshest);
+          setCloudSynced(true);
+          setLastCloudSaveTime(Date.now());
+          // Sync presence
+          updatePlayerPresence(freshest, tgUser);
+        }
+      } catch (err) {
+        console.warn('Auto cloud load failed:', err);
+      }
+    };
+    
+    initCloudAndLoad();
+
+    // Autosave on visibility change
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveGameLocally(saveData);
+        saveToTelegramCloud(saveData);
+        saveUserProgress(saveData);
+        updatePlayerPresence(saveData, tgUser);
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('beforeunload', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []); // Run once on mount
+
+  // Local save on every change
+  useEffect(() => {
+    saveGameLocally(saveData);
+  }, [saveData]);
+
+  // Background cloud sync to Firestore & Telegram Cloud
+  useEffect(() => {
+    setIsCloudSaving(true);
+    const timer = setTimeout(async () => {
+      try {
+        await Promise.allSettled([
+          saveUserProgress(saveData),
+          saveToTelegramCloud(saveData),
+          updatePlayerPresence(saveData, tgUser),
+        ]);
+        setCloudSynced(true);
+        setLastCloudSaveTime(Date.now());
+      } catch (e) {
+        console.warn('Background auto-save error:', e);
+      } finally {
+        setIsCloudSaving(false);
+      }
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [saveData, tgUser]);
+
+  // Periodic Multiplayer Presence Heartbeat (every 30s)
+  useEffect(() => {
+    const heartbeat = setInterval(() => {
+      updatePlayerPresence(saveData, tgUser);
+    }, 30000);
+    return () => clearInterval(heartbeat);
+  }, [saveData, tgUser]);
 
   const addNotification = useCallback(
     (title: string, message: string, type: AppNotification['type'], icon?: string) => {
@@ -1224,6 +1284,17 @@ export default function App() {
             <span>
               Всего накликано: <strong className="text-zinc-200 font-mono">{formatNumber(saveData.totalCoinsEarned)}</strong> 🪙
             </span>
+            <button
+              onClick={() => {
+                hapticEffects.tap();
+                setActiveModal('cloud');
+              }}
+              className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-bold bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded-full hover:bg-emerald-900/50 transition-colors cursor-pointer"
+              title="Автосохранение в облако Firebase"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full bg-emerald-400 ${isCloudSaving ? 'animate-ping' : ''}`} />
+              <span>{isCloudSaving ? 'Сохранение...' : '☁️ Облако активно'}</span>
+            </button>
             {nextLeague && (
               <span className="text-zinc-500 hidden sm:inline">
                 · До {nextLeague.icon}: {formatNumber(Math.max(0, nextLeague.minCoins - saveData.coins))}

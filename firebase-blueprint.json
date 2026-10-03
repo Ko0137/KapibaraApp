@@ -17,7 +17,7 @@
         },
         "level": {
           "type": "number",
-          "description": "Current player level (1 to 200)"
+          "description": "Current player level"
         },
         "prestige": {
           "type": "number",
@@ -49,12 +49,180 @@
         "totalCoinsEarned",
         "updatedAt"
       ]
+    },
+    "ActivePlayer": {
+      "title": "ActivePlayer",
+      "description": "Live presence and battle profile of online Mini App players",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "User UID"
+        },
+        "nickname": {
+          "type": "string",
+          "description": "Player nickname",
+          "maxLength": 64
+        },
+        "level": {
+          "type": "number",
+          "description": "Player level"
+        },
+        "coins": {
+          "type": "number",
+          "description": "Current coins"
+        },
+        "totalCoinsEarned": {
+          "type": "number",
+          "description": "Total coins earned"
+        },
+        "prestige": {
+          "type": "number",
+          "description": "Prestige level"
+        },
+        "selectedSkinId": {
+          "type": "string",
+          "description": "Active skin ID"
+        },
+        "selectedHatId": {
+          "type": "string",
+          "description": "Active hat ID"
+        },
+        "bodyMutation": {
+          "type": "string",
+          "description": "Visual mutation (normal, muscle, slime, skeleton, divine, immortal)"
+        },
+        "equippedWeaponId": {
+          "type": "string",
+          "description": "Equipped weapon"
+        },
+        "dealsWon": {
+          "type": "number",
+          "description": "Total deals/duels won"
+        },
+        "lastActive": {
+          "type": "number",
+          "description": "Unix timestamp of last activity"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status (online, ready, in_battle)"
+        }
+      },
+      "required": [
+        "userId",
+        "nickname",
+        "level",
+        "lastActive"
+      ]
+    },
+    "DuelRoom": {
+      "title": "DuelRoom",
+      "description": "Live 1v1 PvP duel match between two active players",
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "string",
+          "description": "Unique room ID"
+        },
+        "hostId": {
+          "type": "string",
+          "description": "Host player UID"
+        },
+        "hostName": {
+          "type": "string",
+          "description": "Host player nickname"
+        },
+        "hostScore": {
+          "type": "number",
+          "description": "Host current tap score"
+        },
+        "guestId": {
+          "type": "string",
+          "description": "Guest player UID"
+        },
+        "guestName": {
+          "type": "string",
+          "description": "Guest player nickname"
+        },
+        "guestScore": {
+          "type": "number",
+          "description": "Guest current tap score"
+        },
+        "betCoins": {
+          "type": "number",
+          "description": "Wager coins for the duel"
+        },
+        "status": {
+          "type": "string",
+          "description": "Room status: waiting, active, finished"
+        },
+        "winnerId": {
+          "type": "string",
+          "description": "UID of the winning player"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": [
+        "roomId",
+        "hostId",
+        "hostName",
+        "status",
+        "updatedAt"
+      ]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Complete user auto-save data stored in cloud",
+      "type": "object",
+      "properties": {
+        "playerName": {
+          "type": "string",
+          "description": "Player name"
+        },
+        "level": {
+          "type": "number",
+          "description": "Level"
+        },
+        "coins": {
+          "type": "number",
+          "description": "Coins"
+        },
+        "lastSavedTimestamp": {
+          "type": "number",
+          "description": "Save timestamp"
+        }
+      },
+      "required": [
+        "playerName",
+        "level",
+        "lastSavedTimestamp"
+      ]
     }
   },
   "firestore": {
     "/leaderboard/{userId}": {
       "schema": "LeaderboardEntry",
-      "description": "Global competitive leaderboard records indexed by user ID"
+      "description": "Global competitive leaderboard records"
+    },
+    "/activePlayers/{userId}": {
+      "schema": "ActivePlayer",
+      "description": "Active multiplayer lobby profiles"
+    },
+    "/duelRooms/{roomId}": {
+      "schema": "DuelRoom",
+      "description": "Live PvP duel battle rooms"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User auto-save document"
+    },
+    "/cloudSaves/{cloudId}": {
+      "schema": "UserProfile",
+      "description": "Public cloud save code snapshots"
     }
   }
 }
