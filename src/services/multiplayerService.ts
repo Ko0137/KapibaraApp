@@ -45,86 +45,91 @@ export interface DuelRoomData {
   updatedAt: number;
 }
 
-// Fallback seed players for when database is newly populated
-const SEED_OPPONENTS: DealOpponent[] = [
+// Bot Champions available when no real players are online or for training
+export const BOT_CHAMPIONS: DealOpponent[] = [
   {
-    id: 'TAP-DUB1',
-    nickname: 'Шейх Капибар 🇦🇪',
+    id: 'BOT-DUB1',
+    nickname: '🤖 Шейх Капибар 🇦🇪 (ИИ)',
     level: 42,
     coins: 18500000,
     avatarIcon: '🦫',
     auraEffect: 'deal_fire',
     tapPower: 924,
-    dealRank: '💼 Акула Сделок',
+    dealRank: '💼 Акула Сделок (Бот)',
     equippedSkinId: 'skin_sheikh_capy',
     equippedHatId: 'hat_crown',
     equippedWeaponId: 'scepter',
     bodyMutation: 'normal',
-    isOnline: true,
+    isOnline: false,
+    isBot: true,
     tier: 'mortal',
   },
   {
-    id: 'TAP-SAM8',
-    nickname: 'Капи-Рёнин 2077 🥷',
+    id: 'BOT-SAM8',
+    nickname: '🤖 Капи-Рёнин 2077 🥷 (ИИ)',
     level: 89,
     coins: 98000000,
     avatarIcon: '🦫',
     auraEffect: 'deal_fire',
     tapPower: 1958,
-    dealRank: '👑 Крипто-Владыка',
+    dealRank: '👑 Крипто-Владыка (Бот)',
     equippedSkinId: 'skin_samurai_capy',
     equippedHatId: 'hat_shades',
     equippedWeaponId: 'katana',
     bodyMutation: 'normal',
-    isOnline: true,
+    isOnline: false,
+    isBot: true,
     tier: 'mortal',
   },
   {
-    id: 'TAP-TIT9',
-    nickname: 'Титан Колосс 💪',
+    id: 'BOT-TIT9',
+    nickname: '🤖 Титан Колосс 💪 (ИИ)',
     level: 168,
     coins: 1200000000,
     avatarIcon: '👑',
     auraEffect: 'divine_light',
     tapPower: 3696,
-    dealRank: '👑 Крипто-Владыка',
+    dealRank: '👑 Крипто-Владыка (Бот)',
     equippedSkinId: 'skin_muscle_mutant',
     equippedHatId: 'hat_demon_horns',
     equippedWeaponId: 'greatsword',
     bodyMutation: 'muscle',
-    isOnline: true,
+    isOnline: false,
+    isBot: true,
     tier: 'divine',
   },
   {
-    id: 'TAP-ARC3',
-    nickname: 'Архимаг Эфира 🔮',
+    id: 'BOT-ARC3',
+    nickname: '🤖 Архимаг Эфира 🔮 (ИИ)',
     level: 210,
     coins: 4500000000,
     avatarIcon: '👑',
     auraEffect: 'divine_light',
     tapPower: 4620,
-    dealRank: '✨ Божественный Серафим',
+    dealRank: '✨ Божественный Серафим (Бот)',
     equippedSkinId: 'skin_toxic_ooze',
     equippedHatId: 'hat_archmage_hood',
     equippedWeaponId: 'crystal_orb',
     bodyMutation: 'slime',
-    isOnline: true,
+    isOnline: false,
+    isBot: true,
     tier: 'divine',
   },
   {
-    id: 'TAP-IMM1',
-    nickname: 'Бессмертный Абсолют 🌌',
+    id: 'BOT-IMM1',
+    nickname: '🤖 Бессмертный Абсолют 🌌 (ИИ)',
     level: 295,
     coins: 58000000000,
     avatarIcon: '🌌',
     auraEffect: 'immortal_void',
     tapPower: 6490,
-    dealRank: '🌌 Бессмертный Владыка',
+    dealRank: '🌌 Бессмертный Владыка (Бот)',
     equippedSkinId: 'skin_god_capy',
     equippedHatId: 'hat_cosmic_crown',
     equippedWeaponId: 'scythe',
     bodyMutation: 'immortal',
-    isOnline: true,
+    isOnline: false,
+    isBot: true,
     tier: 'immortal',
   },
 ];
@@ -134,7 +139,8 @@ const SEED_OPPONENTS: DealOpponent[] = [
  */
 export async function updatePlayerPresence(
   saveData: GameSaveData,
-  tgUser?: TelegramUser | null
+  tgUser?: TelegramUser | null,
+  isOffline: boolean = false
 ): Promise<void> {
   try {
     const user = await ensureAuthenticated();
@@ -175,8 +181,8 @@ export async function updatePlayerPresence(
       bodyMutation: body,
       equippedWeaponId: weapon || null,
       dealsWon: saveData.dealStats?.dealsWon || 0,
-      lastActive: Date.now(),
-      status: 'online',
+      lastActive: isOffline ? 0 : Date.now(),
+      status: isOffline ? 'offline' : 'online',
       telegramId: tgUser?.id || null,
     };
 
@@ -188,19 +194,19 @@ export async function updatePlayerPresence(
 }
 
 /**
- * Subscribes to real-time online players from Firestore
+ * Subscribes to real-time ONLINE ONLY players from Firestore (active in last 2 mins)
  */
 export function subscribeToActivePlayers(
-  callback: (players: DealOpponent[], onlineCount: number) => void
+  callback: (onlineRealPlayers: DealOpponent[], botChampions: DealOpponent[], onlineCount: number) => void
 ): () => void {
   try {
     const colRef = collection(db, 'activePlayers');
-    const q = query(colRef, orderBy('lastActive', 'desc'), limit(40));
+    const q = query(colRef, orderBy('lastActive', 'desc'), limit(50));
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const fetched: DealOpponent[] = [];
+        const fetchedOnline: DealOpponent[] = [];
         const now = Date.now();
         const currentUid = getPersistentUserId();
 
@@ -208,7 +214,10 @@ export function subscribeToActivePlayers(
           const d = docSnap.data();
           if (docSnap.id === currentUid) return; // Don't fight oneself
 
-          const isOnline = now - (d.lastActive || 0) < 1000 * 60 * 15; // Active in last 15 mins
+          // STRICT ONLINE RULE: Only players active within the last 2 minutes and with status 'online'
+          const isOnline = d.status === 'online' && now - (d.lastActive || 0) < 1000 * 60 * 2;
+          if (!isOnline) return; // Discard offline players from live duels!
+
           const lvl = Number(d.level) || 1;
           const tier = lvl > 265 ? 'immortal' : lvl > 165 ? 'divine' : 'mortal';
 
@@ -218,7 +227,7 @@ export function subscribeToActivePlayers(
           else if (lvl > 80) rankLabel = '👑 Крипто-Владыка';
           else if (lvl > 30) rankLabel = '⚡ Мастер Капи-Тапа';
 
-          fetched.push({
+          fetchedOnline.push({
             id: docSnap.id,
             nickname: d.nickname || 'Реальный Игрок',
             level: lvl,
@@ -236,32 +245,25 @@ export function subscribeToActivePlayers(
             equippedHatId: d.selectedHatId || 'hat_none',
             equippedWeaponId: d.equippedWeaponId || undefined,
             bodyMutation: d.bodyMutation || 'normal',
-            isOnline,
+            isOnline: true,
+            isBot: false,
             tier,
           });
         });
 
-        // Merge with seed opponents to ensure rich matchmaking
-        const combined = [...fetched];
-        SEED_OPPONENTS.forEach((seed) => {
-          if (!combined.some((o) => o.id === seed.id)) {
-            combined.push(seed);
-          }
-        });
-
-        const onlineCount = combined.filter((p) => p.isOnline).length;
-        callback(combined, Math.max(1, onlineCount));
+        const totalOnline = fetchedOnline.length + 1; // +1 includes current user
+        callback(fetchedOnline, BOT_CHAMPIONS, totalOnline);
       },
       (error) => {
-        console.warn('Multiplayer listener error, using fallback:', error);
-        callback(SEED_OPPONENTS, SEED_OPPONENTS.length);
+        console.warn('Multiplayer listener error, using bot champions:', error);
+        callback([], BOT_CHAMPIONS, 1);
       }
     );
 
     return unsubscribe;
   } catch (err) {
     console.warn('Failed to start multiplayer listener:', err);
-    callback(SEED_OPPONENTS, SEED_OPPONENTS.length);
+    callback([], BOT_CHAMPIONS, 1);
     return () => {};
   }
 }

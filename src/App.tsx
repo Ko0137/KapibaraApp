@@ -161,15 +161,20 @@ export default function App() {
         saveGameLocally(saveData, tgUser?.id);
         saveToTelegramCloud(saveData);
         saveUserProgress(saveData);
-        updatePlayerPresence(saveData, tgUser);
+        updatePlayerPresence(saveData, tgUser, true);
+      } else if (document.visibilityState === 'visible' && isLoadedRef.current) {
+        updatePlayerPresence(saveData, tgUser, false);
       }
     };
     
-    window.addEventListener('beforeunload', handleVisibilityChange);
+    window.addEventListener('beforeunload', () => {
+      if (isLoadedRef.current) {
+        updatePlayerPresence(saveData, tgUser, true);
+      }
+    });
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       isMounted = false;
-      window.removeEventListener('beforeunload', handleVisibilityChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []); // Run once on mount
@@ -189,7 +194,7 @@ export default function App() {
         await Promise.allSettled([
           saveUserProgress(saveData),
           saveToTelegramCloud(saveData),
-          updatePlayerPresence(saveData, tgUser),
+          updatePlayerPresence(saveData, tgUser, false),
         ]);
         setCloudSynced(true);
         setLastCloudSaveTime(Date.now());
@@ -206,10 +211,33 @@ export default function App() {
   useEffect(() => {
     if (!isLoadedRef.current) return;
     const heartbeat = setInterval(() => {
-      updatePlayerPresence(saveData, tgUser);
+      updatePlayerPresence(saveData, tgUser, false);
     }, 30000);
     return () => clearInterval(heartbeat);
   }, [saveData, tgUser]);
+
+  const [isMandatoryWeeklyDeal, setIsMandatoryWeeklyDeal] = useState(false);
+
+  // Check for Sunday / Weekly Mandatory Deal
+  useEffect(() => {
+    if (!isLoadedRef.current || saveData.level < 3) return;
+
+    const now = Date.now();
+    const lastWeekly = saveData.dealStats?.lastWeeklyDealTimestamp || 0;
+    const isSunday = new Date().getDay() === 0;
+    const isOverAWeek = now - lastWeekly >= 7 * 24 * 60 * 60 * 1000;
+
+    // Trigger on Sunday if not done today, or if more than 7 days have passed
+    if ((isSunday && now - lastWeekly > 24 * 60 * 60 * 1000) || isOverAWeek) {
+      const timer = setTimeout(() => {
+        setIsMandatoryWeeklyDeal(true);
+        setActiveModal('deal');
+        sound.playWarning();
+        hapticEffects.warning();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [saveData.dealStats?.lastWeeklyDealTimestamp, saveData.level]);
 
   const addNotification = useCallback(
     (title: string, message: string, type: AppNotification['type'], icon?: string) => {
@@ -782,6 +810,7 @@ export default function App() {
     oppClicks: number,
     debuff?: LossDebuff | null
   ) => {
+    setIsMandatoryWeeklyDeal(false);
     setSaveData((prev) => {
       const currentDealStats = prev.dealStats || {
         dealsWon: 0,
@@ -820,44 +849,47 @@ export default function App() {
         hapticEffects.feverStart();
       }
 
-      if (won) {
-        return {
-          ...prev,
-          coins: prev.coins + coinsWon,
-          totalCoinsEarned: prev.totalCoinsEarned + coinsWon,
-          quests: updatedQuests,
-          dealHistory: updatedHistory,
-          lossDebuff: undefined, // Cleared on win
-          immortalUnlocked,
-          dealStats: {
-            ...currentDealStats,
-            dealsWon: currentDealStats.dealsWon + 1,
-            totalCoinsWon: currentDealStats.totalCoinsWon + coinsWon,
-            lastDealTimestamp: Date.now(),
-            lastWeeklyDealTimestamp: Date.now(),
-          },
-        };
-      } else {
-        return {
-          ...prev,
-          coins: 1000, // Reset balance to 0, provide 1000 seed restart cash
-          quests: updatedQuests,
-          dealHistory: updatedHistory,
-          lossDebuff: debuff || undefined,
-          immortalUnlocked,
-          dealStats: {
-            ...currentDealStats,
-            dealsLost: currentDealStats.dealsLost + 1,
-            lastDealTimestamp: Date.now(),
-            lastWeeklyDealTimestamp: Date.now(),
-          },
-        };
-      }
+      const updatedState = won
+        ? {
+            ...prev,
+            coins: prev.coins + coinsWon,
+            totalCoinsEarned: prev.totalCoinsEarned + coinsWon,
+            quests: updatedQuests,
+            dealHistory: updatedHistory,
+            lossDebuff: undefined,
+            immortalUnlocked,
+            dealStats: {
+              ...currentDealStats,
+              dealsWon: currentDealStats.dealsWon + 1,
+              totalCoinsWon: currentDealStats.totalCoinsWon + coinsWon,
+              lastDealTimestamp: Date.now(),
+              lastWeeklyDealTimestamp: Date.now(),
+            },
+          }
+        : {
+            ...prev,
+            coins: 1000,
+            quests: updatedQuests,
+            dealHistory: updatedHistory,
+            lossDebuff: debuff || undefined,
+            immortalUnlocked,
+            dealStats: {
+              ...currentDealStats,
+              dealsLost: currentDealStats.dealsLost + 1,
+              lastDealTimestamp: Date.now(),
+              lastWeeklyDealTimestamp: Date.now(),
+            },
+          };
+
+      saveGameLocally(updatedState, tgUser?.id);
+      saveUserProgress(updatedState);
+      return updatedState;
     });
   };
 
   // Pay 50% penalty for refusing deal
   const handlePayPenalty = (penaltyAmount: number, debuff?: LossDebuff) => {
+    setIsMandatoryWeeklyDeal(false);
     setSaveData((prev) => {
       const currentDealStats = prev.dealStats || {
         dealsWon: 0,
@@ -879,7 +911,7 @@ export default function App() {
         timestamp: Date.now(),
       };
 
-      return {
+      const updated = {
         ...prev,
         coins: Math.max(0, prev.coins - penaltyAmount),
         lossDebuff: debuff || undefined,
@@ -890,6 +922,10 @@ export default function App() {
           lastWeeklyDealTimestamp: Date.now(),
         },
       };
+
+      saveGameLocally(updated, tgUser?.id);
+      saveUserProgress(updated);
+      return updated;
     });
   };
 
@@ -1958,7 +1994,10 @@ export default function App() {
       {/* PvP Deal Arena Modal */}
       {activeModal === 'deal' && (
         <DealModal
-          onClose={() => setActiveModal('none')}
+          onClose={() => {
+            setIsMandatoryWeeklyDeal(false);
+            setActiveModal('none');
+          }}
           playerLevel={saveData.level}
           playerCoins={saveData.coins}
           playerName={saveData.playerName}
@@ -1976,6 +2015,7 @@ export default function App() {
           }}
           dealHistory={saveData.dealHistory || []}
           immortalUnlocked={saveData.immortalUnlocked}
+          isMandatoryWeeklyDeal={isMandatoryWeeklyDeal}
           onCompleteDeal={handleCompleteDeal}
           onPayPenalty={handlePayPenalty}
         />

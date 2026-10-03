@@ -212,6 +212,7 @@ export interface DealOpponent {
   equippedWeaponId?: string;
   bodyMutation?: 'normal' | 'muscle' | 'slime' | 'skeleton' | 'divine' | 'immortal';
   isOnline?: boolean;
+  isBot?: boolean;
   tier?: LevelTier;
 }
 

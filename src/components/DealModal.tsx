@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Swords, ShieldAlert, Trophy, Zap, AlertTriangle, Flame, Clock, 
   User, X, Check, Award, History, TrendingUp, TrendingDown, Sparkles, 
-  Users, Radio, Globe, Shield, Skull, RefreshCw, Plus, Play, Loader2
+  Users, Radio, Globe, Shield, Skull, RefreshCw, Plus, Play, Loader2, Bot
 } from 'lucide-react';
 import { DealOpponent, CharacterSkin, CharacterHat, DealHistoryItem, LossDebuff, CustomCapybaraConfig } from '../types/game';
 import { CHARACTER_SKINS, CHARACTER_HATS } from '../data/skins';
@@ -20,6 +20,7 @@ import {
   finishDuelRoom, 
   leaveDuelRoom, 
   listenToWaitingRooms,
+  BOT_CHAMPIONS,
   DuelRoomData 
 } from '../services/multiplayerService';
 import { getPersistentUserId } from '../services/firebase';
@@ -45,6 +46,7 @@ interface DealModalProps {
   };
   dealHistory?: DealHistoryItem[];
   immortalUnlocked?: boolean;
+  isMandatoryWeeklyDeal?: boolean;
   onCompleteDeal: (
     won: boolean, 
     coinsWon: number, 
@@ -70,16 +72,17 @@ export const DealModal: React.FC<DealModalProps> = ({
   dealStats,
   dealHistory = [],
   immortalUnlocked = false,
+  isMandatoryWeeklyDeal = false,
   onCompleteDeal,
   onPayPenalty,
 }) => {
   const [activeTab, setActiveTab] = useState<'arena' | 'players' | 'live_rooms' | 'history'>('arena');
   const [phase, setPhase] = useState<'lobby' | 'matching' | 'countdown' | 'battle' | 'result'>('lobby');
-  const [realPlayers, setRealPlayers] = useState<DealOpponent[]>([]);
+  const [onlineRealPlayers, setOnlineRealPlayers] = useState<DealOpponent[]>([]);
+  const [botOpponents, setBotOpponents] = useState<DealOpponent[]>(BOT_CHAMPIONS);
   const [onlineCount, setOnlineCount] = useState(1);
   const [loadingPlayers, setLoadingPlayers] = useState(true);
   const [selectedOpponent, setSelectedOpponent] = useState<DealOpponent | null>(null);
-  const [playerFilter, setPlayerFilter] = useState<'all' | 'online' | 'match'>('online');
 
   // Live Duel Room state
   const [waitingRooms, setWaitingRooms] = useState<DuelRoomData[]>([]);
@@ -102,23 +105,31 @@ export const DealModal: React.FC<DealModalProps> = ({
   // Subscribe to real live players in real-time from Firestore
   useEffect(() => {
     setLoadingPlayers(true);
-    const unsubscribe = subscribeToActivePlayers((players, count) => {
-      // Exclude oneself from opponents list
-      const nonSelf = players.filter((p) => p.id !== myUid && p.nickname !== playerName);
-      setRealPlayers(nonSelf);
+    const unsubscribe = subscribeToActivePlayers((realPlayers, bots, count) => {
+      // Exclude oneself
+      const nonSelf = realPlayers.filter((p) => p.id !== myUid && p.nickname !== playerName);
+      setOnlineRealPlayers(nonSelf);
+      setBotOpponents(bots);
       setOnlineCount(count);
       setLoadingPlayers(false);
 
-      if (!selectedOpponent && nonSelf.length > 0) {
-        const sorted = [...nonSelf].sort(
-          (a, b) => Math.abs(a.level - playerLevel) - Math.abs(b.level - playerLevel)
-        );
-        setSelectedOpponent(sorted[0]);
+      if (!selectedOpponent) {
+        if (nonSelf.length > 0) {
+          const sorted = [...nonSelf].sort(
+            (a, b) => Math.abs(a.level - playerLevel) - Math.abs(b.level - playerLevel)
+          );
+          setSelectedOpponent(sorted[0]);
+        } else {
+          // Fallback to closest bot champion
+          const sortedBots = [...bots].sort(
+            (a, b) => Math.abs(a.level - playerLevel) - Math.abs(b.level - playerLevel)
+          );
+          setSelectedOpponent(sortedBots[0]);
+        }
       }
     });
 
     const unsubRooms = listenToWaitingRooms((rooms) => {
-      // Filter waiting rooms from other players
       setWaitingRooms(rooms.filter((r) => r.hostId !== myUid));
     });
 
@@ -146,7 +157,7 @@ export const DealModal: React.FC<DealModalProps> = ({
   const oppClicksRef = useRef(0);
   const finishCalledRef = useRef(false);
 
-  // Derive opponent profile based on whether we are in a live room or async arena
+  // Active opponent resolution
   const activeOpponent: DealOpponent = useMemo(() => {
     if (currentLiveRoomId && liveRoomData) {
       if (isHost) {
@@ -162,6 +173,7 @@ export const DealModal: React.FC<DealModalProps> = ({
           equippedSkinId: liveRoomData.guestSkinId || 'skin_default',
           equippedHatId: liveRoomData.guestHatId || 'hat_none',
           isOnline: true,
+          isBot: false,
         };
       } else {
         return {
@@ -176,6 +188,7 @@ export const DealModal: React.FC<DealModalProps> = ({
           equippedSkinId: liveRoomData.hostSkinId,
           equippedHatId: liveRoomData.hostHatId,
           isOnline: true,
+          isBot: false,
         };
       }
     }
@@ -184,26 +197,12 @@ export const DealModal: React.FC<DealModalProps> = ({
       return selectedOpponent;
     }
 
-    const firstValid = realPlayers.find((p) => p.id !== myUid && p.nickname !== playerName);
-    if (firstValid) return firstValid;
+    if (onlineRealPlayers.length > 0) {
+      return onlineRealPlayers[0];
+    }
 
-    return {
-      id: 'opp_sheikh',
-      nickname: 'Шейх Капибар 🇦🇪',
-      level: Math.max(1, playerLevel),
-      coins: Math.max(50000, Math.round(playerCoins * 0.9)),
-      avatarIcon: '👑',
-      auraEffect: 'deal_fire',
-      tapPower: Math.max(80, Math.round(playerLevel * 20)),
-      dealRank: 'Акула Сделок',
-      equippedSkinId: 'skin_sheikh_capy',
-      equippedHatId: 'hat_crown',
-      equippedWeaponId: 'scepter',
-      bodyMutation: playerLevel > 165 ? 'divine' : 'normal',
-      tier: playerLevel > 165 ? 'divine' : 'mortal',
-      isOnline: true,
-    };
-  }, [currentLiveRoomId, liveRoomData, isHost, selectedOpponent, myUid, playerName, realPlayers, playerLevel, playerCoins]);
+    return botOpponents[0] || BOT_CHAMPIONS[0];
+  }, [currentLiveRoomId, liveRoomData, isHost, selectedOpponent, myUid, playerName, onlineRealPlayers, botOpponents, playerLevel]);
 
   // Opponent Visual Model
   const oppSkin = CHARACTER_SKINS.find((s) => s.id === activeOpponent.equippedSkinId) || CHARACTER_SKINS[0];
@@ -304,7 +303,7 @@ export const DealModal: React.FC<DealModalProps> = ({
     return () => clearInterval(t);
   }, [phase, timeLeft]);
 
-  // Matchmaking timer ticker
+  // Matchmaking ticker
   useEffect(() => {
     if (phase === 'matching') {
       const interval = setInterval(() => {
@@ -324,13 +323,11 @@ export const DealModal: React.FC<DealModalProps> = ({
       if (!room) return;
       setLiveRoomData(room);
 
-      // When guest joins the waiting room, start countdown for both players!
       if ((room.status === 'starting' || (room.guestId && room.status === 'waiting')) && (phase === 'matching' || phase === 'lobby')) {
         setCountdown(3);
         setPhase('countdown');
       }
 
-      // Sync opponent score live
       if (isHost && typeof room.guestTaps === 'number') {
         oppClicksRef.current = room.guestTaps;
         setOpponentClicks(room.guestTaps);
@@ -355,7 +352,7 @@ export const DealModal: React.FC<DealModalProps> = ({
     userClicksRef.current = 0;
     oppClicksRef.current = 0;
 
-    // If async match against player profile, emulate clicks
+    // If fighting an offline bot or async profile: emulate realistic taps
     if (!currentLiveRoomId) {
       const oppBaseSpeedMs = Math.max(110, 230 - Math.min(130, (activeOpponent.tapPower || 100) / 6));
       oppIntervalRef.current = setInterval(() => {
@@ -390,7 +387,7 @@ export const DealModal: React.FC<DealModalProps> = ({
       setOppHit(false);
     }, 100);
 
-    // Sync to Firestore Live room throttled to avoid hitting rate limits
+    // Sync to Firestore Live room throttled
     if (currentLiveRoomId) {
       const now = Date.now();
       if (now - lastTapSyncRef.current > 120) {
@@ -406,7 +403,6 @@ export const DealModal: React.FC<DealModalProps> = ({
     sound.playFeverStart();
     setPhase('matching');
 
-    // 1. Look for existing waiting room from another real player
     const availableRoom = waitingRooms.find((r) => r.status === 'waiting' && r.hostId !== myUid);
 
     if (availableRoom) {
@@ -432,7 +428,6 @@ export const DealModal: React.FC<DealModalProps> = ({
       }
     }
 
-    // 2. Otherwise create a new waiting room
     const createRes = await createDuelRoom(
       {
         id: myUid,
@@ -455,7 +450,6 @@ export const DealModal: React.FC<DealModalProps> = ({
     }
   };
 
-  // Start Instant Async Duel against offline player
   const handleStartAsyncDuel = () => {
     if (currentLiveRoomId) {
       leaveDuelRoom(currentLiveRoomId, isHost);
@@ -469,10 +463,10 @@ export const DealModal: React.FC<DealModalProps> = ({
     sound.playWarning();
     hapticEffects.warning();
     const debuff: LossDebuff = {
-      name: 'Штраф за Отказ от Сделки',
-      desc: '-30% к доходу на 10 минут за бегство с Арены',
-      percent: 0.3,
-      expiresAt: Date.now() + 1000 * 60 * 10,
+      name: isMandatoryWeeklyDeal ? 'Штраф за Отказ от Воскресной Сделки' : 'Штраф за Отказ от Сделки',
+      desc: '-40% к доходу на 15 минут за отказ от обязательного боя',
+      percent: 0.4,
+      expiresAt: Date.now() + 1000 * 60 * 15,
       icon: '🚫'
     };
     setTimeout(() => {
@@ -481,7 +475,6 @@ export const DealModal: React.FC<DealModalProps> = ({
     }, 0);
   };
 
-  // Cancel Matching
   const handleCancelMatching = () => {
     if (currentLiveRoomId) {
       leaveDuelRoom(currentLiveRoomId, isHost);
@@ -501,41 +494,39 @@ export const DealModal: React.FC<DealModalProps> = ({
     };
   }, [currentLiveRoomId, isHost]);
 
-  // Filtered Players
-  const filteredPlayers = realPlayers.filter((p) => {
-    if (p.id === myUid || p.nickname === playerName) return false;
-    if (playerFilter === 'online') return p.isOnline;
-    if (playerFilter === 'match') return Math.abs(p.level - playerLevel) <= 20;
-    return true;
-  });
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/85 backdrop-blur-md animate-fadeIn">
-      <div className="bg-zinc-900 border border-red-500/50 w-full max-w-lg rounded-3xl p-5 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden text-white relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/90 backdrop-blur-md animate-fadeIn">
+      <div className={`bg-zinc-900 border w-full max-w-lg rounded-3xl p-5 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden text-white relative ${
+        isMandatoryWeeklyDeal ? 'border-amber-500 shadow-amber-500/20' : 'border-red-500/50 shadow-red-500/10'
+      }`}>
         
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-red-500/20 text-red-400 border border-red-500/40">
+            <div className={`p-2 rounded-xl border ${
+              isMandatoryWeeklyDeal ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : 'bg-red-500/20 text-red-400 border-red-500/40'
+            }`}>
               <Swords className="w-6 h-6 animate-pulse" />
             </div>
             <div>
               <h2 className="text-lg font-black tracking-wide flex items-center gap-2">
-                СДЕЛКА ВЕКА
-                <span className="text-[10px] bg-red-600 text-white font-extrabold px-2 py-0.5 rounded-full animate-pulse">
-                  PvP АРЕНА
+                {isMandatoryWeeklyDeal ? 'СДЕЛКА ВЕКА' : 'СДЕЛКА ВЕКА'}
+                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full animate-pulse ${
+                  isMandatoryWeeklyDeal ? 'bg-amber-500 text-black' : 'bg-red-600 text-white'
+                }`}>
+                  {isMandatoryWeeklyDeal ? '🚨 ВОСКРЕСНЫЙ БОЙ' : 'PvP АРЕНА'}
                 </span>
               </h2>
               <p className="text-xs text-zinc-400 flex items-center gap-1.5">
                 <span>15 секунд • Ставка на банк</span>
                 <span className="text-emerald-400 font-bold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
-                  {onlineCount} онлайн
+                  {onlineRealPlayers.length + 1} онлайн
                 </span>
               </p>
             </div>
           </div>
-          {phase === 'lobby' && (
+          {phase === 'lobby' && !isMandatoryWeeklyDeal && (
             <button
               onClick={() => {
                 hapticEffects.tap();
@@ -548,8 +539,19 @@ export const DealModal: React.FC<DealModalProps> = ({
           )}
         </div>
 
-        {/* Navigation Tabs (Only in lobby) */}
-        {phase === 'lobby' && (
+        {/* Weekly Mandatory Alert Banner */}
+        {isMandatoryWeeklyDeal && phase === 'lobby' && (
+          <div className="my-2.5 p-3 rounded-2xl bg-amber-950/60 border border-amber-500/50 text-amber-200 text-xs flex items-center gap-2.5 animate-pulse">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+            <div>
+              <strong className="block font-black text-white">Обязательный бой недели!</strong>
+              <span>Сразитесь с противником или потеряйте 50% своего банка монет при отказе.</span>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Tabs (Only in regular lobby) */}
+        {phase === 'lobby' && !isMandatoryWeeklyDeal && (
           <div className="grid grid-cols-4 gap-1 my-3 bg-zinc-950 p-1 rounded-2xl border border-zinc-800">
             <button
               onClick={() => {
@@ -575,7 +577,7 @@ export const DealModal: React.FC<DealModalProps> = ({
                   : 'text-zinc-400 hover:text-white'
               }`}
             >
-              <Users className="w-3.5 h-3.5" /> Игроки ({realPlayers.length})
+              <Users className="w-3.5 h-3.5" /> Игроки ({onlineRealPlayers.length})
             </button>
             <button
               onClick={() => {
@@ -607,10 +609,10 @@ export const DealModal: React.FC<DealModalProps> = ({
         )}
 
         {/* TAB 1: ARENA LOBBY */}
-        {phase === 'lobby' && activeTab === 'arena' && (
+        {phase === 'lobby' && (activeTab === 'arena' || isMandatoryWeeklyDeal) && (
           <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 custom-scrollbar">
             
-            {/* Real Opponent Profile Match */}
+            {/* Opponent Profile Match Card */}
             <div className="p-4 rounded-2xl bg-gradient-to-br from-zinc-950 to-zinc-900 border border-red-500/30 shadow-lg">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] font-black uppercase text-red-400 flex items-center gap-1">
@@ -619,10 +621,19 @@ export const DealModal: React.FC<DealModalProps> = ({
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
                   activeOpponent.isOnline 
                     ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                    : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                    : 'bg-purple-950/60 text-purple-300 border-purple-500/40'
                 }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${activeOpponent.isOnline ? 'bg-emerald-400 animate-ping' : 'bg-zinc-500'}`} />
-                  {activeOpponent.isOnline ? 'В СЕТИ' : 'ОФЛАЙН'}
+                  {activeOpponent.isOnline ? (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                      🟢 ИГРОК ОНЛАЙН
+                    </>
+                  ) : (
+                    <>
+                      <Bot className="w-3 h-3 text-purple-400" />
+                      🤖 БОТ-ЧЕМПИОН
+                    </>
+                  )}
                 </span>
               </div>
 
@@ -691,107 +702,90 @@ export const DealModal: React.FC<DealModalProps> = ({
                 className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:brightness-110 text-white font-black text-sm shadow-lg shadow-red-600/40 flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
               >
                 <Swords className="w-5 h-5 animate-bounce" />
-                <span>ПРИНЯТЬ СДЕЛКУ (БИТВА 15 СЕК)</span>
+                <span>ПРИНЯТЬ ВЫЗОВ (БИТВА 15 СЕК)</span>
               </button>
 
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={handleQuickMatch}
-                  className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 text-xs font-black text-white shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Zap className="w-4 h-4 text-yellow-300 animate-pulse" />
-                  <span>⚡ Live 1v1 Поиск</span>
-                </button>
+                {!isMandatoryWeeklyDeal && (
+                  <button
+                    onClick={handleQuickMatch}
+                    className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 text-xs font-black text-white shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Zap className="w-4 h-4 text-yellow-300 animate-pulse" />
+                    <span>⚡ Live 1v1 Поиск</span>
+                  </button>
+                )}
 
                 <button
                   onClick={handleRefuseDeal}
-                  className="py-2.5 px-3 rounded-xl bg-zinc-950 hover:bg-zinc-900 text-xs font-bold text-red-400 border border-red-500/30 flex items-center justify-center gap-1.5 cursor-pointer"
+                  className={`py-2.5 px-3 rounded-xl bg-zinc-950 hover:bg-zinc-900 text-xs font-bold text-red-400 border border-red-500/30 flex items-center justify-center gap-1.5 cursor-pointer ${
+                    isMandatoryWeeklyDeal ? 'col-span-2' : ''
+                  }`}
                 >
                   <ShieldAlert className="w-4 h-4 text-red-500" />
-                  <span>Отказаться (-50%)</span>
+                  <span>Отказаться (-50% банка)</span>
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB 2: REAL ONLINE PLAYERS LOBBY */}
-        {phase === 'lobby' && activeTab === 'players' && (
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
+        {/* TAB 2: REAL ONLINE PLAYERS & BOTS LOBBY */}
+        {phase === 'lobby' && activeTab === 'players' && !isMandatoryWeeklyDeal && (
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
             
-            {/* Filter pills */}
-            <div className="flex items-center justify-between gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800 text-xs">
-              <button
-                onClick={() => setPlayerFilter('online')}
-                className={`flex-1 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                  playerFilter === 'online' ? 'bg-emerald-600 text-white' : 'text-zinc-400'
-                }`}
-              >
-                🟢 В сети ({realPlayers.filter(p => p.isOnline).length})
-              </button>
-              <button
-                onClick={() => setPlayerFilter('match')}
-                className={`flex-1 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                  playerFilter === 'match' ? 'bg-amber-600 text-white' : 'text-zinc-400'
-                }`}
-              >
-                🎯 Мой уровень
-              </button>
-              <button
-                onClick={() => setPlayerFilter('all')}
-                className={`flex-1 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                  playerFilter === 'all' ? 'bg-zinc-800 text-white' : 'text-zinc-400'
-                }`}
-              >
-                Все ({realPlayers.length})
-              </button>
-            </div>
+            {/* Real Online Players Section */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Реальные Игроки Онлайн ({onlineRealPlayers.length})
+                </span>
+                <span className="text-[10px] text-zinc-500">Только живые игроки в сети</span>
+              </div>
 
-            {/* Players list */}
-            {loadingPlayers ? (
-              <div className="p-8 text-center text-zinc-400 flex flex-col items-center gap-2">
-                <RefreshCw className="w-6 h-6 animate-spin text-amber-400" />
-                <span>Загрузка реальных игроков из Firebase...</span>
-              </div>
-            ) : filteredPlayers.length === 0 ? (
-              <div className="p-8 text-center text-zinc-400">
-                Нет других игроков по данному фильтру
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {filteredPlayers.map((player) => {
-                  const isSelected = selectedOpponent?.id === player.id;
-                  return (
-                    <div
-                      key={player.id}
-                      className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
-                        isSelected
-                          ? 'bg-red-950/50 border-red-500 shadow-md shadow-red-500/20'
-                          : 'bg-zinc-950/80 border-zinc-800 hover:border-zinc-700'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-amber-500/40 flex items-center justify-center text-xl shrink-0">
-                          {player.avatarIcon}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-black text-xs text-white truncate">
-                              {player.nickname}
-                            </span>
-                            {player.isOnline && (
+              {loadingPlayers ? (
+                <div className="p-6 text-center text-zinc-400 flex flex-col items-center gap-2 bg-zinc-950/60 rounded-2xl border border-zinc-800">
+                  <RefreshCw className="w-5 h-5 animate-spin text-amber-400" />
+                  <span className="text-xs">Поиск игроков в сети...</span>
+                </div>
+              ) : onlineRealPlayers.length === 0 ? (
+                <div className="p-4 text-center text-xs text-zinc-400 bg-zinc-950/50 rounded-2xl border border-zinc-800/80">
+                  <p className="font-bold text-zinc-300">Сейчас нет других игроков в сети.</p>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">Вы можете сразиться с Ботами-Чемпионами ниже!</p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {onlineRealPlayers.map((player) => {
+                    const isSelected = selectedOpponent?.id === player.id;
+                    return (
+                      <div
+                        key={player.id}
+                        className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? 'bg-red-950/50 border-red-500 shadow-md shadow-red-500/20'
+                            : 'bg-zinc-950/80 border-zinc-800 hover:border-zinc-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-emerald-500/50 flex items-center justify-center text-xl shrink-0">
+                            {player.avatarIcon}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-black text-xs text-white truncate">
+                                {player.nickname}
+                              </span>
                               <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono mt-0.5">
-                            <span className="text-amber-400 font-bold">Ур. {player.level}</span>
-                            <span>•</span>
-                            <span>{formatNumber(player.coins)} 🪙</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono mt-0.5">
+                              <span className="text-amber-400 font-bold">Ур. {player.level}</span>
+                              <span>•</span>
+                              <span>{formatNumber(player.coins)} 🪙</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           onClick={() => {
                             hapticEffects.tap();
@@ -808,16 +802,78 @@ export const DealModal: React.FC<DealModalProps> = ({
                           <span>{isSelected ? 'Выбран' : 'Вызвать'}</span>
                         </button>
                       </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* AI Bot Champions Section */}
+            <div className="space-y-2 pt-2 border-t border-zinc-800">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-purple-400 flex items-center gap-1.5">
+                  <Bot className="w-4 h-4 text-purple-400" />
+                  Боты-Чемпионы (ИИ)
+                </span>
+                <span className="text-[10px] text-zinc-500">Доступны всегда</span>
+              </div>
+
+              <div className="space-y-1.5">
+                {botOpponents.map((bot) => {
+                  const isSelected = selectedOpponent?.id === bot.id;
+                  return (
+                    <div
+                      key={bot.id}
+                      className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                        isSelected
+                          ? 'bg-purple-950/50 border-purple-500 shadow-md shadow-purple-500/20'
+                          : 'bg-zinc-950/60 border-zinc-800/80 hover:border-zinc-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-purple-500/40 flex items-center justify-center text-xl shrink-0">
+                          {bot.avatarIcon}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-black text-xs text-purple-200 truncate">
+                              {bot.nickname}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono mt-0.5">
+                            <span className="text-amber-400 font-bold">Ур. {bot.level}</span>
+                            <span>•</span>
+                            <span>{formatNumber(bot.coins)} 🪙</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          hapticEffects.tap();
+                          setSelectedOpponent(bot);
+                          setActiveTab('arena');
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 cursor-pointer ${
+                          isSelected
+                            ? 'bg-purple-600 text-white shadow-md'
+                            : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                        }`}
+                      >
+                        <Swords className="w-3.5 h-3.5" />
+                        <span>{isSelected ? 'Выбран' : 'Сразиться'}</span>
+                      </button>
                     </div>
                   );
                 })}
               </div>
-            )}
+            </div>
+
           </div>
         )}
 
         {/* TAB 3: LIVE 1V1 REAL-TIME ROOMS */}
-        {phase === 'lobby' && activeTab === 'live_rooms' && (
+        {phase === 'lobby' && activeTab === 'live_rooms' && !isMandatoryWeeklyDeal && (
           <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 custom-scrollbar">
             {/* Quick Match Action */}
             <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/80 to-indigo-950/80 border border-purple-500/40 space-y-3">
@@ -915,7 +971,7 @@ export const DealModal: React.FC<DealModalProps> = ({
         )}
 
         {/* TAB 4: DEAL HISTORY */}
-        {phase === 'lobby' && activeTab === 'history' && (
+        {phase === 'lobby' && activeTab === 'history' && !isMandatoryWeeklyDeal && (
           <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="p-2.5 rounded-2xl bg-zinc-950 border border-zinc-800">
@@ -970,7 +1026,7 @@ export const DealModal: React.FC<DealModalProps> = ({
           </div>
         )}
 
-        {/* PHASE: MATCHING (RADAR WAITING SCREEN) */}
+        {/* PHASE: MATCHING */}
         {phase === 'matching' && (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-5">
             <div className="relative flex items-center justify-center">
@@ -1024,7 +1080,6 @@ export const DealModal: React.FC<DealModalProps> = ({
         {/* PHASE: BATTLE */}
         {phase === 'battle' && (
           <div className="flex-1 flex flex-col justify-between p-2 space-y-3">
-            {/* Top Battle HUD */}
             <div className="flex items-center justify-between bg-zinc-950 p-2.5 rounded-2xl border border-zinc-800">
               <div className="text-left">
                 <span className="text-[10px] text-zinc-400 block font-bold truncate max-w-[100px]">{playerName}</span>
@@ -1117,12 +1172,16 @@ export const DealModal: React.FC<DealModalProps> = ({
             <button
               onClick={() => {
                 hapticEffects.tap();
-                setPhase('lobby');
-                setCurrentLiveRoomId(null);
+                if (isMandatoryWeeklyDeal) {
+                  onClose();
+                } else {
+                  setPhase('lobby');
+                  setCurrentLiveRoomId(null);
+                }
               }}
               className="w-full max-w-sm py-3 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-white font-black text-xs shadow-md cursor-pointer"
             >
-              Вернуться в Арену
+              {isMandatoryWeeklyDeal ? 'Завершить Воскресную Сделку' : 'Вернуться в Арену'}
             </button>
           </div>
         )}
