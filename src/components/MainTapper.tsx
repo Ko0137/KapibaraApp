@@ -26,6 +26,7 @@ interface MainTapperProps {
   onShowNotification?: (title: string, message: string, type: 'success' | 'info' | 'level' | 'achievement' | 'neuromuscular' | 'telegram', icon?: string) => void;
   currentLevel: GameLevel;
   currentClicks: number;
+  totalTaps?: number;
   tapPower: number;
   critChance: number;
   critMultiplier: number;
@@ -82,6 +83,7 @@ export const MainTapper: React.FC<MainTapperProps> = ({
   onShowNotification,
   currentLevel,
   currentClicks,
+  totalTaps = 0,
   tapPower,
   critChance,
   critMultiplier,
@@ -531,9 +533,13 @@ export const MainTapper: React.FC<MainTapperProps> = ({
                 <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-white rounded-full blur-[1px] animate-pulse" />
               </div>
             </div>
-            <div className="flex justify-between text-[10px] text-zinc-400 mt-0.5 font-mono">
-              <span>{formatNumber(currentClicks)} тапов</span>
-              <span>Цель: {formatNumber(currentLevel.clicksRequired)}</span>
+            <div className="flex justify-between items-center text-[10px] text-zinc-400 mt-1 font-mono">
+              <span className="text-zinc-300 font-bold">
+                🎯 До след. уровня: {formatNumber(currentClicks)} / {formatNumber(currentLevel.clicksRequired)}
+              </span>
+              <span className="text-amber-400 font-extrabold bg-zinc-950 px-2 py-0.5 rounded-md border border-zinc-800">
+                ⚡ Всего: {formatNumber(totalTaps)}
+              </span>
             </div>
           </div>
         ) : (

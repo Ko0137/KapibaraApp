@@ -27,11 +27,17 @@ import { evaluateSecretEvents } from './utils/secretEventsChecker';
 import { formatNumber, formatTimeSeconds } from './utils/format';
 import { sound } from './utils/audio';
 import { hapticEffects, isHapticsEnabled, setHapticsEnabled } from './utils/haptics';
-import { testFirestoreConnection, ensureAuthenticated } from './services/firebase';
+import { testFirestoreConnection, ensureAuthenticated, getPersistentUserId } from './services/firebase';
 import { loadGameLocally, saveGameLocally, exportSaveString, importSaveString } from './services/cloudSave';
 import { saveUserProgress, loadUserProgress } from './services/telegramFirestore';
 import { saveToTelegramCloud, loadFromTelegramCloud } from './services/telegramCloud';
-import { updatePlayerPresence } from './services/multiplayerService';
+import { 
+  updatePlayerPresence, 
+  listenToIncomingChallenges, 
+  acceptDuelChallenge, 
+  declineDuelChallenge, 
+  DuelChallengeData 
+} from './services/multiplayerService';
 
 import { MainTapper } from './components/MainTapper';
 import { UpgradesPanel } from './components/UpgradesPanel';
@@ -52,6 +58,7 @@ import { CharacterModal } from './components/CharacterModal';
 import { DealModal } from './components/DealModal';
 import { ResetPerksModal } from './components/ResetPerksModal';
 import { SecretEventsModal } from './components/SecretEventsModal';
+import { IncomingChallengeModal } from './components/IncomingChallengeModal';
 import { initTelegramApp, TelegramUser } from './utils/telegram';
 import { NotificationToast, AppNotification } from './components/NotificationToast';
 
@@ -238,6 +245,39 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [saveData.dealStats?.lastWeeklyDealTimestamp, saveData.level]);
+
+  // Real-time Incoming Duel Challenges Listener
+  const [incomingChallenge, setIncomingChallenge] = useState<DuelChallengeData | null>(null);
+
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+    const uid = getPersistentUserId();
+    const unsubscribe = listenToIncomingChallenges(uid, (challenge) => {
+      setIncomingChallenge(challenge);
+    });
+    return () => unsubscribe();
+  }, [saveData.playerName]);
+
+  const handleAcceptIncomingChallenge = async (challenge: DuelChallengeData) => {
+    const res = await acceptDuelChallenge(challenge, {
+      id: getPersistentUserId(),
+      nickname: saveData.playerName,
+      level: saveData.level,
+      avatar: '🦫',
+      skinId: saveData.selectedSkinIdBase || 'skin_default',
+      hatId: saveData.selectedHatId || 'hat_none',
+    });
+
+    if (res.success && res.roomId) {
+      setIncomingChallenge(null);
+      setActiveModal('deal');
+    }
+  };
+
+  const handleDeclineIncomingChallenge = async (challengeId: string) => {
+    await declineDuelChallenge(challengeId);
+    setIncomingChallenge(null);
+  };
 
   const addNotification = useCallback(
     (title: string, message: string, type: AppNotification['type'], icon?: string) => {
@@ -1390,6 +1430,7 @@ export default function App() {
             onShowNotification={addNotification}
             currentLevel={currentLevelDef}
             currentClicks={saveData.currentLevelClicks}
+            totalTaps={saveData.totalTaps}
             tapPower={calculatedStats.tapPower}
             critChance={calculatedStats.critChance}
             critMultiplier={calculatedStats.critMultiplier}
@@ -2106,6 +2147,15 @@ export default function App() {
           gems={saveData.gems}
           onClaim={handleClaimOffline}
           onClose={() => setActiveModal('none')}
+        />
+      )}
+
+      {/* Real-Time Incoming PvP Duel Challenge Modal */}
+      {incomingChallenge && (
+        <IncomingChallengeModal
+          challenge={incomingChallenge}
+          onAccept={handleAcceptIncomingChallenge}
+          onDecline={handleDeclineIncomingChallenge}
         />
       )}
     </div>

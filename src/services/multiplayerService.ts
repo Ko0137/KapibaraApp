@@ -45,6 +45,23 @@ export interface DuelRoomData {
   updatedAt: number;
 }
 
+export interface DuelChallengeData {
+  challengeId: string;
+  fromUserId: string;
+  fromName: string;
+  fromLevel: number;
+  fromAvatar: string;
+  fromSkinId: string;
+  fromHatId: string;
+  toUserId: string;
+  toName: string;
+  betCoins: number;
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+  roomId?: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
 // Bot Champions available when no real players are online or for training
 export const BOT_CHAMPIONS: DealOpponent[] = [
   {
@@ -214,9 +231,8 @@ export function subscribeToActivePlayers(
           const d = docSnap.data();
           if (docSnap.id === currentUid) return; // Don't fight oneself
 
-          // STRICT ONLINE RULE: Only players active within the last 2 minutes and with status 'online'
           const isOnline = d.status === 'online' && now - (d.lastActive || 0) < 1000 * 60 * 2;
-          if (!isOnline) return; // Discard offline players from live duels!
+          if (!isOnline) return;
 
           const lvl = Number(d.level) || 1;
           const tier = lvl > 265 ? 'immortal' : lvl > 165 ? 'divine' : 'mortal';
@@ -251,7 +267,7 @@ export function subscribeToActivePlayers(
           });
         });
 
-        const totalOnline = fetchedOnline.length + 1; // +1 includes current user
+        const totalOnline = fetchedOnline.length + 1;
         callback(fetchedOnline, BOT_CHAMPIONS, totalOnline);
       },
       (error) => {
@@ -340,7 +356,7 @@ export async function joinDuelRoom(
       guestSkinId: guestPlayer.equippedSkinId || 'skin_default',
       guestHatId: guestPlayer.equippedHatId || 'hat_none',
       status: 'starting',
-      startedAt: Date.now() + 3000, // 3s countdown
+      startedAt: Date.now() + 3000,
       updatedAt: Date.now(),
     });
 
@@ -474,5 +490,214 @@ export function listenToWaitingRooms(callback: (rooms: DuelRoomData[]) => void):
   } catch (e) {
     console.warn('Failed to listen to waiting rooms:', e);
     return () => {};
+  }
+}
+
+// ==========================================
+// DIRECT REAL-TIME DUEL CHALLENGES (1v1 ВЫЗОВ)
+// ==========================================
+
+/**
+ * Send a direct real-time challenge to an online player
+ */
+export async function sendDuelChallenge(
+  fromPlayer: {
+    id: string;
+    nickname: string;
+    level: number;
+    avatar: string;
+    skinId: string;
+    hatId: string;
+  },
+  targetPlayer: {
+    id: string;
+    nickname: string;
+  },
+  betCoins: number
+): Promise<{ success: boolean; challengeId?: string; error?: string }> {
+  try {
+    await ensureAuthenticated();
+    const challengeId = `CHAL-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const docRef = doc(db, 'duelChallenges', challengeId);
+
+    const challengeData: DuelChallengeData = {
+      challengeId,
+      fromUserId: fromPlayer.id,
+      fromName: fromPlayer.nickname,
+      fromLevel: fromPlayer.level,
+      fromAvatar: fromPlayer.avatar,
+      fromSkinId: fromPlayer.skinId,
+      fromHatId: fromPlayer.hatId,
+      toUserId: targetPlayer.id,
+      toName: targetPlayer.nickname,
+      betCoins,
+      status: 'pending',
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 25000, // 25s to accept
+    };
+
+    await setDoc(docRef, challengeData);
+    return { success: true, challengeId };
+  } catch (err: any) {
+    console.error('Failed to send duel challenge:', err);
+    return { success: false, error: err?.message || 'Не удалось отправить вызов' };
+  }
+}
+
+/**
+ * Subscribes to incoming duel challenges for the current player
+ */
+export function listenToIncomingChallenges(
+  myUserId: string,
+  callback: (challenge: DuelChallengeData | null) => void
+): () => void {
+  try {
+    const colRef = collection(db, 'duelChallenges');
+    const q = query(
+      colRef,
+      where('toUserId', '==', myUserId),
+      where('status', '==', 'pending'),
+      limit(5)
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const now = Date.now();
+        let validChallenge: DuelChallengeData | null = null;
+        snapshot.forEach((d) => {
+          const c = d.data() as DuelChallengeData;
+          if (c.expiresAt > now && !validChallenge) {
+            validChallenge = c;
+          }
+        });
+        callback(validChallenge);
+      },
+      (err) => {
+        console.warn('Incoming challenges listener error:', err);
+      }
+    );
+
+    return unsubscribe;
+  } catch (err) {
+    console.warn('Failed to listen to incoming challenges:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Subscribes to status updates of a challenge sent by current player
+ */
+export function listenToSentChallenge(
+  challengeId: string,
+  callback: (challenge: DuelChallengeData | null) => void
+): () => void {
+  try {
+    const docRef = doc(db, 'duelChallenges', challengeId);
+    const unsubscribe = onSnapshot(
+      docRef,
+      (snap) => {
+        if (!snap.exists()) {
+          callback(null);
+          return;
+        }
+        callback(snap.data() as DuelChallengeData);
+      },
+      (err) => {
+        console.warn('Sent challenge listener error:', err);
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    console.warn('Failed to listen to sent challenge:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Accept incoming duel challenge: creates the live duel room and sets status to 'accepted'
+ */
+export async function acceptDuelChallenge(
+  challenge: DuelChallengeData,
+  myPlayer: {
+    id: string;
+    nickname: string;
+    level: number;
+    avatar: string;
+    skinId: string;
+    hatId: string;
+  }
+): Promise<{ success: boolean; roomId?: string; error?: string }> {
+  try {
+    await ensureAuthenticated();
+    const roomId = `DUEL-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+    const roomRef = doc(db, 'duelRooms', roomId);
+
+    // Create live room with both challenger (host) and accepter (guest) ready
+    const roomData: DuelRoomData = {
+      roomId,
+      hostId: challenge.fromUserId,
+      hostName: challenge.fromName,
+      hostLevel: challenge.fromLevel,
+      hostAvatar: challenge.fromAvatar,
+      hostSkinId: challenge.fromSkinId,
+      hostHatId: challenge.fromHatId,
+      hostScore: 0,
+      hostTaps: 0,
+      guestId: myPlayer.id,
+      guestName: myPlayer.nickname,
+      guestLevel: myPlayer.level,
+      guestAvatar: myPlayer.avatar,
+      guestSkinId: myPlayer.skinId,
+      guestHatId: myPlayer.hatId,
+      guestScore: 0,
+      guestTaps: 0,
+      betCoins: challenge.betCoins,
+      status: 'starting',
+      startedAt: Date.now() + 3000,
+      durationSeconds: 15,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    await setDoc(roomRef, roomData);
+
+    // Update challenge document
+    const challengeRef = doc(db, 'duelChallenges', challenge.challengeId);
+    await updateDoc(challengeRef, {
+      status: 'accepted',
+      roomId,
+    });
+
+    return { success: true, roomId };
+  } catch (err: any) {
+    console.error('Failed to accept duel challenge:', err);
+    return { success: false, error: err?.message || 'Ошибка принятия вызова' };
+  }
+}
+
+/**
+ * Decline incoming duel challenge
+ */
+export async function declineDuelChallenge(challengeId: string): Promise<void> {
+  try {
+    const challengeRef = doc(db, 'duelChallenges', challengeId);
+    await updateDoc(challengeRef, {
+      status: 'declined',
+    });
+  } catch (err) {
+    console.warn('Failed to decline duel challenge:', err);
+  }
+}
+
+/**
+ * Cancel sent duel challenge
+ */
+export async function cancelDuelChallenge(challengeId: string): Promise<void> {
+  try {
+    const challengeRef = doc(db, 'duelChallenges', challengeId);
+    await deleteDoc(challengeRef);
+  } catch (err) {
+    console.warn('Failed to cancel duel challenge:', err);
   }
 }

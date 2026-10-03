@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Swords, ShieldAlert, Trophy, Zap, AlertTriangle, Flame, Clock, 
   User, X, Check, Award, History, TrendingUp, TrendingDown, Sparkles, 
-  Users, Radio, Globe, Shield, Skull, RefreshCw, Plus, Play, Loader2, Bot
+  Users, Radio, Globe, Shield, Skull, RefreshCw, Plus, Play, Loader2, Bot, Send
 } from 'lucide-react';
 import { DealOpponent, CharacterSkin, CharacterHat, DealHistoryItem, LossDebuff, CustomCapybaraConfig } from '../types/game';
 import { CHARACTER_SKINS, CHARACTER_HATS } from '../data/skins';
@@ -20,8 +20,12 @@ import {
   finishDuelRoom, 
   leaveDuelRoom, 
   listenToWaitingRooms,
+  sendDuelChallenge,
+  listenToSentChallenge,
+  cancelDuelChallenge,
   BOT_CHAMPIONS,
-  DuelRoomData 
+  DuelRoomData,
+  DuelChallengeData 
 } from '../services/multiplayerService';
 import { getPersistentUserId } from '../services/firebase';
 
@@ -92,6 +96,12 @@ export const DealModal: React.FC<DealModalProps> = ({
   const [betCoinsChoice, setBetCoinsChoice] = useState(10000);
   const [searchTimer, setSearchTimer] = useState(0);
 
+  // Direct 1v1 Challenge Modal state
+  const [challengeTargetPlayer, setChallengeTargetPlayer] = useState<DealOpponent | null>(null);
+  const [sentChallengeId, setSentChallengeId] = useState<string | null>(null);
+  const [sentChallengeStatus, setSentChallengeStatus] = useState<string | null>(null);
+  const [challengeTimer, setChallengeTimer] = useState(25);
+
   const myUid = useMemo(() => getPersistentUserId(), []);
 
   // User Player Visual Stats
@@ -120,7 +130,6 @@ export const DealModal: React.FC<DealModalProps> = ({
           );
           setSelectedOpponent(sorted[0]);
         } else {
-          // Fallback to closest bot champion
           const sortedBots = [...bots].sort(
             (a, b) => Math.abs(a.level - playerLevel) - Math.abs(b.level - playerLevel)
           );
@@ -138,6 +147,55 @@ export const DealModal: React.FC<DealModalProps> = ({
       unsubRooms();
     };
   }, [playerLevel, myUid, playerName]);
+
+  // Listen to sent challenge status
+  useEffect(() => {
+    if (!sentChallengeId) return;
+
+    const interval = setInterval(() => {
+      setChallengeTimer((t) => {
+        if (t <= 1) {
+          clearInterval(interval);
+          setSentChallengeStatus('Время ожидания ответа истекло.');
+          setTimeout(() => {
+            setSentChallengeId(null);
+            setSentChallengeStatus(null);
+          }, 3000);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+
+    const unsub = listenToSentChallenge(sentChallengeId, (challenge) => {
+      if (!challenge) return;
+
+      if (challenge.status === 'accepted' && challenge.roomId) {
+        sound.playComboSuccess();
+        hapticEffects.feverStart();
+        setCurrentLiveRoomId(challenge.roomId);
+        setIsHost(true);
+        setSentChallengeId(null);
+        setChallengeTargetPlayer(null);
+        setCountdown(3);
+        setPhase('countdown');
+      } else if (challenge.status === 'declined') {
+        sound.playError();
+        hapticEffects.warning();
+        setSentChallengeStatus(`Игрок ${challenge.toName} отклонил ваш вызов на дуэль.`);
+        setTimeout(() => {
+          setSentChallengeId(null);
+          setSentChallengeStatus(null);
+          setChallengeTargetPlayer(null);
+        }, 3500);
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsub();
+    };
+  }, [sentChallengeId]);
 
   // Battle Mechanics State
   const [timeLeft, setTimeLeft] = useState(15);
@@ -450,6 +508,45 @@ export const DealModal: React.FC<DealModalProps> = ({
     }
   };
 
+  // Send Direct Duel Challenge to another Online Player
+  const handleSendDirectChallenge = async (targetPlayer: DealOpponent) => {
+    hapticEffects.feverStart();
+    sound.playTick();
+    setChallengeTimer(25);
+    setSentChallengeStatus(null);
+
+    const res = await sendDuelChallenge(
+      {
+        id: myUid,
+        nickname: playerName,
+        level: playerLevel,
+        avatar: playerSkin.icon || '🦫',
+        skinId: actualSkinId,
+        hatId: selectedHatId,
+      },
+      {
+        id: targetPlayer.id,
+        nickname: targetPlayer.nickname,
+      },
+      betCoinsChoice
+    );
+
+    if (res.success && res.challengeId) {
+      setSentChallengeId(res.challengeId);
+    } else {
+      setSentChallengeStatus(res.error || 'Ошибка отправки вызова');
+    }
+  };
+
+  const handleCancelDirectChallenge = () => {
+    if (sentChallengeId) {
+      cancelDuelChallenge(sentChallengeId);
+      setSentChallengeId(null);
+    }
+    setChallengeTargetPlayer(null);
+    setSentChallengeStatus(null);
+  };
+
   const handleStartAsyncDuel = () => {
     if (currentLiveRoomId) {
       leaveDuelRoom(currentLiveRoomId, isHost);
@@ -491,8 +588,11 @@ export const DealModal: React.FC<DealModalProps> = ({
       if (currentLiveRoomId) {
         leaveDuelRoom(currentLiveRoomId, isHost);
       }
+      if (sentChallengeId) {
+        cancelDuelChallenge(sentChallengeId);
+      }
     };
-  }, [currentLiveRoomId, isHost]);
+  }, [currentLiveRoomId, isHost, sentChallengeId]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/90 backdrop-blur-md animate-fadeIn">
@@ -550,7 +650,7 @@ export const DealModal: React.FC<DealModalProps> = ({
           </div>
         )}
 
-        {/* Navigation Tabs (Only in regular lobby) */}
+        {/* Navigation Tabs */}
         {phase === 'lobby' && !isMandatoryWeeklyDeal && (
           <div className="grid grid-cols-4 gap-1 my-3 bg-zinc-950 p-1 rounded-2xl border border-zinc-800">
             <button
@@ -639,7 +739,6 @@ export const DealModal: React.FC<DealModalProps> = ({
 
               {/* Two Fighters Face-Off Showcase */}
               <div className="grid grid-cols-2 gap-3 items-center bg-black/40 p-3 rounded-2xl border border-zinc-800">
-                {/* User Fighter Visual */}
                 <div className="flex flex-col items-center">
                   <CharacterFighterVisual
                     skin={playerSkin}
@@ -659,7 +758,6 @@ export const DealModal: React.FC<DealModalProps> = ({
                   </div>
                 </div>
 
-                {/* Opponent Fighter Visual */}
                 <div className="flex flex-col items-center">
                   <CharacterFighterVisual
                     skin={oppSkin}
@@ -730,7 +828,7 @@ export const DealModal: React.FC<DealModalProps> = ({
           </div>
         )}
 
-        {/* TAB 2: REAL ONLINE PLAYERS & BOTS LOBBY */}
+        {/* TAB 2: REAL ONLINE PLAYERS & DIRECT CHALLENGE */}
         {phase === 'lobby' && activeTab === 'players' && !isMandatoryWeeklyDeal && (
           <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
             
@@ -741,7 +839,7 @@ export const DealModal: React.FC<DealModalProps> = ({
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   Реальные Игроки Онлайн ({onlineRealPlayers.length})
                 </span>
-                <span className="text-[10px] text-zinc-500">Только живые игроки в сети</span>
+                <span className="text-[10px] text-zinc-500">Прямой вызов на 1v1</span>
               </div>
 
               {loadingPlayers ? (
@@ -755,17 +853,12 @@ export const DealModal: React.FC<DealModalProps> = ({
                   <p className="text-[11px] text-zinc-500 mt-0.5">Вы можете сразиться с Ботами-Чемпионами ниже!</p>
                 </div>
               ) : (
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {onlineRealPlayers.map((player) => {
-                    const isSelected = selectedOpponent?.id === player.id;
                     return (
                       <div
                         key={player.id}
-                        className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
-                          isSelected
-                            ? 'bg-red-950/50 border-red-500 shadow-md shadow-red-500/20'
-                            : 'bg-zinc-950/80 border-zinc-800 hover:border-zinc-700'
-                        }`}
+                        className="p-3 rounded-2xl border bg-zinc-950/80 border-zinc-800 hover:border-emerald-500/50 transition-all flex items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-emerald-500/50 flex items-center justify-center text-xl shrink-0">
@@ -786,21 +879,18 @@ export const DealModal: React.FC<DealModalProps> = ({
                           </div>
                         </div>
 
-                        <button
-                          onClick={() => {
-                            hapticEffects.tap();
-                            setSelectedOpponent(player);
-                            setActiveTab('arena');
-                          }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 cursor-pointer ${
-                            isSelected
-                              ? 'bg-red-600 text-white shadow-md'
-                              : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-                          }`}
-                        >
-                          <Swords className="w-3.5 h-3.5" />
-                          <span>{isSelected ? 'Выбран' : 'Вызвать'}</span>
-                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => {
+                              hapticEffects.tap();
+                              setChallengeTargetPlayer(player);
+                            }}
+                            className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-red-600 to-amber-500 hover:brightness-110 text-white shadow-md flex items-center gap-1 cursor-pointer active:scale-95"
+                          >
+                            <Swords className="w-3.5 h-3.5" />
+                            <span>Вызвать</span>
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -820,15 +910,10 @@ export const DealModal: React.FC<DealModalProps> = ({
 
               <div className="space-y-1.5">
                 {botOpponents.map((bot) => {
-                  const isSelected = selectedOpponent?.id === bot.id;
                   return (
                     <div
                       key={bot.id}
-                      className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
-                        isSelected
-                          ? 'bg-purple-950/50 border-purple-500 shadow-md shadow-purple-500/20'
-                          : 'bg-zinc-950/60 border-zinc-800/80 hover:border-zinc-700'
-                      }`}
+                      className="p-3 rounded-2xl border bg-zinc-950/60 border-zinc-800/80 hover:border-zinc-700 transition-all flex items-center justify-between gap-3"
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-purple-500/40 flex items-center justify-center text-xl shrink-0">
@@ -854,14 +939,10 @@ export const DealModal: React.FC<DealModalProps> = ({
                           setSelectedOpponent(bot);
                           setActiveTab('arena');
                         }}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 cursor-pointer ${
-                          isSelected
-                            ? 'bg-purple-600 text-white shadow-md'
-                            : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-                        }`}
+                        className="px-3 py-1.5 rounded-xl text-xs font-black bg-purple-600 hover:bg-purple-500 text-white shadow-md flex items-center gap-1 cursor-pointer"
                       >
                         <Swords className="w-3.5 h-3.5" />
-                        <span>{isSelected ? 'Выбран' : 'Сразиться'}</span>
+                        <span>Сразиться</span>
                       </button>
                     </div>
                   );
@@ -875,7 +956,6 @@ export const DealModal: React.FC<DealModalProps> = ({
         {/* TAB 3: LIVE 1V1 REAL-TIME ROOMS */}
         {phase === 'lobby' && activeTab === 'live_rooms' && !isMandatoryWeeklyDeal && (
           <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 custom-scrollbar">
-            {/* Quick Match Action */}
             <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/80 to-indigo-950/80 border border-purple-500/40 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black text-purple-300 flex items-center gap-1.5">
@@ -910,7 +990,6 @@ export const DealModal: React.FC<DealModalProps> = ({
               </button>
             </div>
 
-            {/* Open Waiting Rooms List */}
             <div className="space-y-2">
               <div className="text-xs font-black text-zinc-400 uppercase tracking-wider">
                 Открытые комнаты других игроков ({waitingRooms.length}):
@@ -1026,6 +1105,93 @@ export const DealModal: React.FC<DealModalProps> = ({
           </div>
         )}
 
+        {/* DIRECT CHALLENGE PROMPT MODAL */}
+        {challengeTargetPlayer && !sentChallengeId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-zinc-900 border border-red-500/60 w-full max-w-xs rounded-3xl p-4 text-center space-y-3 shadow-2xl">
+              <div className="w-12 h-12 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/40 mx-auto flex items-center justify-center text-2xl">
+                ⚔️
+              </div>
+              <div>
+                <h4 className="font-black text-sm text-white">Вызвать на дуэль 1v1</h4>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Игрок: <strong className="text-emerald-400">{challengeTargetPlayer.nickname}</strong> (Ур. {challengeTargetPlayer.level})
+                </p>
+              </div>
+
+              {/* Bet Selection */}
+              <div className="space-y-1 text-left">
+                <span className="text-[10px] text-zinc-400 font-bold block">Выберите ставку коинов:</span>
+                <div className="grid grid-cols-3 gap-1.5 text-center">
+                  {[5000, 25000, 100000].map((bet) => (
+                    <button
+                      key={bet}
+                      onClick={() => setBetCoinsChoice(bet)}
+                      className={`py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                        betCoinsChoice === bet
+                          ? 'bg-red-600 text-white border-red-400 shadow-md'
+                          : 'bg-zinc-950 text-zinc-400 border-zinc-800'
+                      }`}
+                    >
+                      {formatNumber(bet)} 🪙
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <button
+                  onClick={() => handleSendDirectChallenge(challengeTargetPlayer)}
+                  className="py-2.5 px-2 rounded-xl bg-gradient-to-r from-red-600 to-amber-500 hover:brightness-110 text-white font-black text-xs shadow-md flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Отправить</span>
+                </button>
+                <button
+                  onClick={() => setChallengeTargetPlayer(null)}
+                  className="py-2.5 px-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-bold cursor-pointer"
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DIRECT CHALLENGE WAITING RADAR POPUP */}
+        {sentChallengeId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-zinc-900 border border-amber-500/60 w-full max-w-xs rounded-3xl p-5 text-center space-y-4 shadow-2xl">
+              <div className="relative flex items-center justify-center mx-auto w-16 h-16">
+                <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-500 animate-ping absolute" />
+                <div className="w-14 h-14 rounded-full bg-zinc-950 border border-amber-400 flex items-center justify-center text-2xl relative z-10">
+                  <Loader2 className="w-7 h-7 text-amber-400 animate-spin" />
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-black text-sm text-white">Ожидание ответа соперника</h4>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Вызов отправлен игроку <strong className="text-white">{challengeTargetPlayer?.nickname}</strong>
+                </p>
+                <div className="text-amber-400 font-mono text-xs font-bold mt-2">
+                  ⏱️ Авто-отмена через: {challengeTimer}с
+                </div>
+                {sentChallengeStatus && (
+                  <p className="text-xs text-red-400 font-bold mt-2 animate-pulse">{sentChallengeStatus}</p>
+                )}
+              </div>
+
+              <button
+                onClick={handleCancelDirectChallenge}
+                className="w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs cursor-pointer"
+              >
+                Отменить вызов
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* PHASE: MATCHING */}
         {phase === 'matching' && (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-5">
@@ -1096,7 +1262,6 @@ export const DealModal: React.FC<DealModalProps> = ({
               </div>
             </div>
 
-            {/* Tug of war bar */}
             <div className="w-full bg-zinc-950 h-3 rounded-full overflow-hidden border border-zinc-800 p-0.5 relative">
               <div
                 className="h-full bg-gradient-to-r from-red-600 via-yellow-400 to-emerald-500 rounded-full transition-all duration-75"
@@ -1105,7 +1270,6 @@ export const DealModal: React.FC<DealModalProps> = ({
               <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white/80" />
             </div>
 
-            {/* Fighter Arenas Visuals */}
             <div className="grid grid-cols-2 gap-3 items-center py-2">
               <div className={`flex flex-col items-center transition-transform ${userAttacking ? 'scale-110' : ''} ${userHit ? 'animate-wiggle' : ''}`}>
                 <CharacterFighterVisual
@@ -1132,7 +1296,6 @@ export const DealModal: React.FC<DealModalProps> = ({
               </div>
             </div>
 
-            {/* Big Tap Area Button */}
             <button
               onPointerDown={handleUserTap}
               className="w-full py-6 rounded-3xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 text-white font-black text-lg shadow-2xl active:scale-95 transition-all select-none touch-none animate-pulse flex items-center justify-center gap-2 cursor-pointer"
