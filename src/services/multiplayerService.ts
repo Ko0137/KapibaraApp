@@ -62,94 +62,86 @@ export interface DuelChallengeData {
   expiresAt: number;
 }
 
-// Bot Champions available when no real players are online or for training
-export const BOT_CHAMPIONS: DealOpponent[] = [
-  {
-    id: 'BOT-DUB1',
-    nickname: '🤖 Шейх Капибар 🇦🇪 (ИИ)',
-    level: 42,
-    coins: 18500000,
-    avatarIcon: '🦫',
-    auraEffect: 'deal_fire',
-    tapPower: 924,
-    dealRank: '💼 Акула Сделок (Бот)',
-    equippedSkinId: 'skin_sheikh_capy',
-    equippedHatId: 'hat_crown',
-    equippedWeaponId: 'scepter',
-    bodyMutation: 'normal',
-    isOnline: false,
-    isBot: true,
-    tier: 'mortal',
-  },
-  {
-    id: 'BOT-SAM8',
-    nickname: '🤖 Капи-Рёнин 2077 🥷 (ИИ)',
-    level: 89,
-    coins: 98000000,
-    avatarIcon: '🦫',
-    auraEffect: 'deal_fire',
-    tapPower: 1958,
-    dealRank: '👑 Крипто-Владыка (Бот)',
-    equippedSkinId: 'skin_samurai_capy',
-    equippedHatId: 'hat_shades',
-    equippedWeaponId: 'katana',
-    bodyMutation: 'normal',
-    isOnline: false,
-    isBot: true,
-    tier: 'mortal',
-  },
-  {
-    id: 'BOT-TIT9',
-    nickname: '🤖 Титан Колосс 💪 (ИИ)',
-    level: 168,
-    coins: 1200000000,
-    avatarIcon: '👑',
-    auraEffect: 'divine_light',
-    tapPower: 3696,
-    dealRank: '👑 Крипто-Владыка (Бот)',
-    equippedSkinId: 'skin_muscle_mutant',
-    equippedHatId: 'hat_demon_horns',
-    equippedWeaponId: 'greatsword',
-    bodyMutation: 'muscle',
-    isOnline: false,
-    isBot: true,
-    tier: 'divine',
-  },
-  {
-    id: 'BOT-ARC3',
-    nickname: '🤖 Архимаг Эфира 🔮 (ИИ)',
-    level: 210,
-    coins: 4500000000,
-    avatarIcon: '👑',
-    auraEffect: 'divine_light',
-    tapPower: 4620,
-    dealRank: '✨ Божественный Серафим (Бот)',
-    equippedSkinId: 'skin_toxic_ooze',
-    equippedHatId: 'hat_archmage_hood',
-    equippedWeaponId: 'crystal_orb',
-    bodyMutation: 'slime',
-    isOnline: false,
-    isBot: true,
-    tier: 'divine',
-  },
-  {
-    id: 'BOT-IMM1',
-    nickname: '🤖 Бессмертный Абсолют 🌌 (ИИ)',
-    level: 295,
-    coins: 58000000000,
-    avatarIcon: '🌌',
-    auraEffect: 'immortal_void',
-    tapPower: 6490,
-    dealRank: '🌌 Бессмертный Владыка (Бот)',
-    equippedSkinId: 'skin_god_capy',
-    equippedHatId: 'hat_cosmic_crown',
-    equippedWeaponId: 'scythe',
-    bodyMutation: 'immortal',
-    isOnline: false,
-    isBot: true,
-    tier: 'immortal',
-  },
-];
+/**
+ * Dynamically generates adaptive Bot Champions scaled to player's level and economy
+ */
+export function generateAdaptiveBotChampions(playerLevel: number = 1, playerCoins: number = 50000): DealOpponent[] {
+  const lvl = Math.max(1, playerLevel);
+  const baseCoins = Math.max(50000, playerCoins);
+
+  return [
+    {
+      id: 'BOT-EQUAL',
+      nickname: '🤖 Кибер-Капибара 🦫 (ИИ)',
+      level: Math.max(1, lvl),
+      coins: Math.round(baseCoins * 1.1),
+      avatarIcon: '🦫',
+      auraEffect: 'deal_fire',
+      tapPower: Math.max(80, Math.round(lvl * 24)),
+      dealRank: 'Дуэлянт ИИ (Равный)',
+      equippedSkinId: 'skin_sheikh_capy',
+      equippedHatId: 'hat_crown',
+      equippedWeaponId: 'scepter',
+      bodyMutation: lvl > 165 ? 'divine' : 'normal',
+      isOnline: false,
+      isBot: true,
+      tier: lvl > 265 ? 'immortal' : lvl > 165 ? 'divine' : 'mortal',
+    },
+    {
+      id: 'BOT-VETERAN',
+      nickname: '🤖 Капи-Рёнин Про 🥷 (ИИ)',
+      level: Math.max(2, Math.round(lvl * 1.15)),
+      coins: Math.round(baseCoins * 1.4),
+      avatarIcon: '🥷',
+      auraEffect: 'deal_fire',
+      tapPower: Math.max(90, Math.round(lvl * 28)),
+      dealRank: 'Ветеран ИИ (Опытный)',
+      equippedSkinId: 'skin_samurai_capy',
+      equippedHatId: 'hat_shades',
+      equippedWeaponId: 'katana',
+      bodyMutation: lvl > 165 ? 'divine' : 'normal',
+      isOnline: false,
+      isBot: true,
+      tier: lvl > 265 ? 'immortal' : lvl > 165 ? 'divine' : 'mortal',
+    },
+    {
+      id: 'BOT-CHAMPION',
+      nickname: '🤖 Титан-Колосс 💀 (ИИ)',
+      level: Math.max(3, Math.round(lvl * 1.3)),
+      coins: Math.round(baseCoins * 2.0),
+      avatarIcon: '👑',
+      auraEffect: 'divine_light',
+      tapPower: Math.max(100, Math.round(lvl * 32)),
+      dealRank: 'Чемпион ИИ (Сложный)',
+      equippedSkinId: 'skin_muscle_mutant',
+      equippedHatId: 'hat_demon_horns',
+      equippedWeaponId: 'greatsword',
+      bodyMutation: 'muscle',
+      isOnline: false,
+      isBot: true,
+      tier: 'divine',
+    },
+    {
+      id: 'BOT-IMMORTAL',
+      nickname: '🤖 Бессмертный Абсолют 🌌 (ИИ)',
+      level: Math.max(5, Math.round(lvl * 1.5)),
+      coins: Math.round(baseCoins * 3.5),
+      avatarIcon: '🌌',
+      auraEffect: 'immortal_void',
+      tapPower: Math.max(120, Math.round(lvl * 38)),
+      dealRank: 'Босс ИИ (Эксперт)',
+      equippedSkinId: 'skin_god_capy',
+      equippedHatId: 'hat_cosmic_crown',
+      equippedWeaponId: 'scythe',
+      bodyMutation: 'immortal',
+      isOnline: false,
+      isBot: true,
+      tier: 'immortal',
+    },
+  ];
+}
+
+export const BOT_CHAMPIONS: DealOpponent[] = generateAdaptiveBotChampions(1, 50000);
 
 /**
  * Register and heart-beat player presence in Firestore activePlayers
@@ -214,11 +206,15 @@ export async function updatePlayerPresence(
  * Subscribes to real-time ONLINE ONLY players from Firestore (active in last 2 mins)
  */
 export function subscribeToActivePlayers(
+  playerLevel: number,
+  playerCoins: number,
   callback: (onlineRealPlayers: DealOpponent[], botChampions: DealOpponent[], onlineCount: number) => void
 ): () => void {
   try {
     const colRef = collection(db, 'activePlayers');
     const q = query(colRef, orderBy('lastActive', 'desc'), limit(50));
+
+    const adaptiveBots = generateAdaptiveBotChampions(playerLevel, playerCoins);
 
     const unsubscribe = onSnapshot(
       q,
@@ -268,18 +264,19 @@ export function subscribeToActivePlayers(
         });
 
         const totalOnline = fetchedOnline.length + 1;
-        callback(fetchedOnline, BOT_CHAMPIONS, totalOnline);
+        callback(fetchedOnline, adaptiveBots, totalOnline);
       },
       (error) => {
-        console.warn('Multiplayer listener error, using bot champions:', error);
-        callback([], BOT_CHAMPIONS, 1);
+        console.warn('Multiplayer listener error, using adaptive bot champions:', error);
+        callback([], adaptiveBots, 1);
       }
     );
 
     return unsubscribe;
   } catch (err) {
     console.warn('Failed to start multiplayer listener:', err);
-    callback([], BOT_CHAMPIONS, 1);
+    const adaptiveBots = generateAdaptiveBotChampions(playerLevel, playerCoins);
+    callback([], adaptiveBots, 1);
     return () => {};
   }
 }
@@ -533,7 +530,7 @@ export async function sendDuelChallenge(
       betCoins,
       status: 'pending',
       createdAt: Date.now(),
-      expiresAt: Date.now() + 25000, // 25s to accept
+      expiresAt: Date.now() + 25000,
     };
 
     await setDoc(docRef, challengeData);
@@ -633,7 +630,6 @@ export async function acceptDuelChallenge(
     const roomId = `DUEL-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
     const roomRef = doc(db, 'duelRooms', roomId);
 
-    // Create live room with both challenger (host) and accepter (guest) ready
     const roomData: DuelRoomData = {
       roomId,
       hostId: challenge.fromUserId,
@@ -662,7 +658,6 @@ export async function acceptDuelChallenge(
 
     await setDoc(roomRef, roomData);
 
-    // Update challenge document
     const challengeRef = doc(db, 'duelChallenges', challenge.challengeId);
     await updateDoc(challengeRef, {
       status: 'accepted',

@@ -33,6 +33,7 @@ import { saveUserProgress, loadUserProgress } from './services/telegramFirestore
 import { saveToTelegramCloud, loadFromTelegramCloud } from './services/telegramCloud';
 import { 
   updatePlayerPresence, 
+  subscribeToActivePlayers,
   listenToIncomingChallenges, 
   acceptDuelChallenge, 
   declineDuelChallenge, 
@@ -224,27 +225,36 @@ export default function App() {
   }, [saveData, tgUser]);
 
   const [isMandatoryWeeklyDeal, setIsMandatoryWeeklyDeal] = useState(false);
+  const [onlineRealPlayersCount, setOnlineRealPlayersCount] = useState(1);
 
-  // Check for Sunday / Weekly Mandatory Deal
+  // Monitor online players count
   useEffect(() => {
-    if (!isLoadedRef.current || saveData.level < 3) return;
+    if (!isLoadedRef.current) return;
+    const unsub = subscribeToActivePlayers(saveData.level, saveData.coins, (players, _bots, count) => {
+      setOnlineRealPlayersCount(count);
+    });
+    return () => unsub();
+  }, [saveData.level, saveData.coins]);
 
-    const now = Date.now();
-    const lastWeekly = saveData.dealStats?.lastWeeklyDealTimestamp || 0;
+  // Check for Sunday Mandatory Deal: Only on Sundays when multiple players (>=2) are online simultaneously!
+  useEffect(() => {
+    if (!isLoadedRef.current || saveData.level < 2) return;
+
     const isSunday = new Date().getDay() === 0;
-    const isOverAWeek = now - lastWeekly >= 7 * 24 * 60 * 60 * 1000;
+    const todaySundayStr = new Date().toISOString().slice(0, 10);
+    const alreadyDidSundayDeal = saveData.dealStats?.lastSundayDealDate === todaySundayStr;
 
-    // Trigger on Sunday if not done today, or if more than 7 days have passed
-    if ((isSunday && now - lastWeekly > 24 * 60 * 60 * 1000) || isOverAWeek) {
+    // Trigger on Sunday if at least 2 players are online simultaneously and player has not completed their 1 Sunday duel yet
+    if (isSunday && onlineRealPlayersCount >= 2 && !alreadyDidSundayDeal && !isMandatoryWeeklyDeal) {
       const timer = setTimeout(() => {
         setIsMandatoryWeeklyDeal(true);
         setActiveModal('deal');
         sound.playWarning();
         hapticEffects.warning();
-      }, 1500);
+      }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [saveData.dealStats?.lastWeeklyDealTimestamp, saveData.level]);
+  }, [saveData.dealStats?.lastSundayDealDate, saveData.level, onlineRealPlayersCount, isMandatoryWeeklyDeal]);
 
   // Real-time Incoming Duel Challenges Listener
   const [incomingChallenge, setIncomingChallenge] = useState<DuelChallengeData | null>(null);
@@ -889,6 +899,7 @@ export default function App() {
         hapticEffects.feverStart();
       }
 
+      const todaySundayStr = new Date().toISOString().slice(0, 10);
       const updatedState = won
         ? {
             ...prev,
@@ -904,6 +915,7 @@ export default function App() {
               totalCoinsWon: currentDealStats.totalCoinsWon + coinsWon,
               lastDealTimestamp: Date.now(),
               lastWeeklyDealTimestamp: Date.now(),
+              lastSundayDealDate: todaySundayStr,
             },
           }
         : {
@@ -918,6 +930,7 @@ export default function App() {
               dealsLost: currentDealStats.dealsLost + 1,
               lastDealTimestamp: Date.now(),
               lastWeeklyDealTimestamp: Date.now(),
+              lastSundayDealDate: todaySundayStr,
             },
           };
 
@@ -930,6 +943,7 @@ export default function App() {
   // Pay 50% penalty for refusing deal
   const handlePayPenalty = (penaltyAmount: number, debuff?: LossDebuff) => {
     setIsMandatoryWeeklyDeal(false);
+    const todaySundayStr = new Date().toISOString().slice(0, 10);
     setSaveData((prev) => {
       const currentDealStats = prev.dealStats || {
         dealsWon: 0,
@@ -960,6 +974,7 @@ export default function App() {
           ...currentDealStats,
           penaltiesPaid: currentDealStats.penaltiesPaid + penaltyAmount,
           lastWeeklyDealTimestamp: Date.now(),
+          lastSundayDealDate: todaySundayStr,
         },
       };
 

@@ -222,6 +222,7 @@ export interface DealStats {
   totalCoinsWon: number;
   lastDealTimestamp: number;
   lastWeeklyDealTimestamp: number;
+  lastSundayDealDate?: string;
   penaltiesPaid: number;
 }
 

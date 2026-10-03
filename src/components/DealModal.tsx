@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Swords, ShieldAlert, Trophy, Zap, AlertTriangle, Flame, Clock, 
   User, X, Check, Award, History, TrendingUp, TrendingDown, Sparkles, 
-  Users, Radio, Globe, Shield, Skull, RefreshCw, Plus, Play, Loader2, Bot, Send
+  Users, Radio, Globe, Shield, Skull, RefreshCw, Plus, Play, Loader2, Bot, Send, FlameKindling
 } from 'lucide-react';
 import { DealOpponent, CharacterSkin, CharacterHat, DealHistoryItem, LossDebuff, CustomCapybaraConfig } from '../types/game';
 import { CHARACTER_SKINS, CHARACTER_HATS } from '../data/skins';
@@ -23,6 +23,7 @@ import {
   sendDuelChallenge,
   listenToSentChallenge,
   cancelDuelChallenge,
+  generateAdaptiveBotChampions,
   BOT_CHAMPIONS,
   DuelRoomData,
   DuelChallengeData 
@@ -46,6 +47,7 @@ interface DealModalProps {
     totalCoinsWon: number;
     lastDealTimestamp: number;
     lastWeeklyDealTimestamp: number;
+    lastSundayDealDate?: string;
     penaltiesPaid: number;
   };
   dealHistory?: DealHistoryItem[];
@@ -83,7 +85,7 @@ export const DealModal: React.FC<DealModalProps> = ({
   const [activeTab, setActiveTab] = useState<'arena' | 'players' | 'live_rooms' | 'history'>('arena');
   const [phase, setPhase] = useState<'lobby' | 'matching' | 'countdown' | 'battle' | 'result'>('lobby');
   const [onlineRealPlayers, setOnlineRealPlayers] = useState<DealOpponent[]>([]);
-  const [botOpponents, setBotOpponents] = useState<DealOpponent[]>(BOT_CHAMPIONS);
+  const [botOpponents, setBotOpponents] = useState<DealOpponent[]>(() => generateAdaptiveBotChampions(playerLevel, playerCoins));
   const [onlineCount, setOnlineCount] = useState(1);
   const [loadingPlayers, setLoadingPlayers] = useState(true);
   const [selectedOpponent, setSelectedOpponent] = useState<DealOpponent | null>(null);
@@ -115,7 +117,7 @@ export const DealModal: React.FC<DealModalProps> = ({
   // Subscribe to real live players in real-time from Firestore
   useEffect(() => {
     setLoadingPlayers(true);
-    const unsubscribe = subscribeToActivePlayers((realPlayers, bots, count) => {
+    const unsubscribe = subscribeToActivePlayers(playerLevel, playerCoins, (realPlayers, bots, count) => {
       // Exclude oneself
       const nonSelf = realPlayers.filter((p) => p.id !== myUid && p.nickname !== playerName);
       setOnlineRealPlayers(nonSelf);
@@ -146,7 +148,7 @@ export const DealModal: React.FC<DealModalProps> = ({
       unsubscribe();
       unsubRooms();
     };
-  }, [playerLevel, myUid, playerName]);
+  }, [playerLevel, playerCoins, myUid, playerName]);
 
   // Listen to sent challenge status
   useEffect(() => {
@@ -226,7 +228,7 @@ export const DealModal: React.FC<DealModalProps> = ({
           coins: liveRoomData.betCoins * 2,
           avatarIcon: liveRoomData.guestAvatar || '🦫',
           auraEffect: 'deal_fire',
-          tapPower: Math.max(80, Math.round((liveRoomData.guestLevel || playerLevel) * 22)),
+          tapPower: Math.max(80, Math.round((liveRoomData.guestLevel || playerLevel) * 25)),
           dealRank: 'Дуэлянт',
           equippedSkinId: liveRoomData.guestSkinId || 'skin_default',
           equippedHatId: liveRoomData.guestHatId || 'hat_none',
@@ -241,7 +243,7 @@ export const DealModal: React.FC<DealModalProps> = ({
           coins: liveRoomData.betCoins * 2,
           avatarIcon: liveRoomData.hostAvatar,
           auraEffect: 'deal_fire',
-          tapPower: Math.max(80, Math.round(liveRoomData.hostLevel * 22)),
+          tapPower: Math.max(80, Math.round(liveRoomData.hostLevel * 25)),
           dealRank: 'Хост Комнаты',
           equippedSkinId: liveRoomData.hostSkinId,
           equippedHatId: liveRoomData.hostHatId,
@@ -410,11 +412,15 @@ export const DealModal: React.FC<DealModalProps> = ({
     userClicksRef.current = 0;
     oppClicksRef.current = 0;
 
-    // If fighting an offline bot or async profile: emulate realistic taps
+    // Dynamically adaptive AI Bot speed and tap cadence
     if (!currentLiveRoomId) {
-      const oppBaseSpeedMs = Math.max(110, 230 - Math.min(130, (activeOpponent.tapPower || 100) / 6));
+      const botPower = activeOpponent.tapPower || playerStats.dealPvPPower || 100;
+      // Adaptive click speed: from 105ms to 170ms based on level
+      const oppBaseSpeedMs = Math.max(105, 185 - Math.min(80, botPower / 30));
+      const clickSuccessRate = Math.min(0.96, 0.82 + Math.min(0.14, activeOpponent.level / 200));
+
       oppIntervalRef.current = setInterval(() => {
-        const willClick = Math.random() > 0.12;
+        const willClick = Math.random() < clickSuccessRate;
         if (willClick) {
           oppClicksRef.current += 1;
           setOpponentClicks((c) => c + 1);
@@ -423,7 +429,7 @@ export const DealModal: React.FC<DealModalProps> = ({
           setTimeout(() => {
             setOppAttacking(false);
             setUserHit(false);
-          }, 100);
+          }, 85);
         }
       }, oppBaseSpeedMs);
     }
@@ -443,7 +449,7 @@ export const DealModal: React.FC<DealModalProps> = ({
     setTimeout(() => {
       setUserAttacking(false);
       setOppHit(false);
-    }, 100);
+    }, 85);
 
     // Sync to Firestore Live room throttled
     if (currentLiveRoomId) {
@@ -580,6 +586,11 @@ export const DealModal: React.FC<DealModalProps> = ({
     setPhase('lobby');
   };
 
+  // Bet Presets: 5k, 25k, 100k, 50% bank, All-in (capped at opponent's coins)
+  const halfBudget = Math.max(1000, Math.floor(playerCoins * 0.5));
+  const opponentMaxBank = challengeTargetPlayer ? challengeTargetPlayer.coins : playerCoins;
+  const maxAllInBet = Math.min(playerCoins, opponentMaxBank);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -644,8 +655,8 @@ export const DealModal: React.FC<DealModalProps> = ({
           <div className="my-2.5 p-3 rounded-2xl bg-amber-950/60 border border-amber-500/50 text-amber-200 text-xs flex items-center gap-2.5 animate-pulse">
             <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
             <div>
-              <strong className="block font-black text-white">Обязательный бой недели!</strong>
-              <span>Сразитесь с противником или потеряйте 50% своего банка монет при отказе.</span>
+              <strong className="block font-black text-white">Воскресная битва (1 раз в неделю)!</strong>
+              <span>В сети несколько игроков. Сразитесь с противником или потеряйте 50% банка при отказе.</span>
             </div>
           </div>
         )}
@@ -731,7 +742,7 @@ export const DealModal: React.FC<DealModalProps> = ({
                   ) : (
                     <>
                       <Bot className="w-3 h-3 text-purple-400" />
-                      🤖 БОТ-ЧЕМПИОН
+                      🤖 БОТ-АДАПТИВНЫЙ
                     </>
                   )}
                 </span>
@@ -884,6 +895,7 @@ export const DealModal: React.FC<DealModalProps> = ({
                             onClick={() => {
                               hapticEffects.tap();
                               setChallengeTargetPlayer(player);
+                              setBetCoinsChoice(Math.min(25000, player.coins));
                             }}
                             className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-red-600 to-amber-500 hover:brightness-110 text-white shadow-md flex items-center gap-1 cursor-pointer active:scale-95"
                           >
@@ -898,14 +910,14 @@ export const DealModal: React.FC<DealModalProps> = ({
               )}
             </div>
 
-            {/* AI Bot Champions Section */}
+            {/* AI Bot Champions Section - Adaptive scaling to player level */}
             <div className="space-y-2 pt-2 border-t border-zinc-800">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black text-purple-400 flex items-center gap-1.5">
                   <Bot className="w-4 h-4 text-purple-400" />
-                  Боты-Чемпионы (ИИ)
+                  Боты-Чемпионы (ИИ под ваш уровень)
                 </span>
-                <span className="text-[10px] text-zinc-500">Доступны всегда</span>
+                <span className="text-[10px] text-zinc-500">Адаптивная сложность</span>
               </div>
 
               <div className="space-y-1.5">
@@ -928,7 +940,7 @@ export const DealModal: React.FC<DealModalProps> = ({
                           <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono mt-0.5">
                             <span className="text-amber-400 font-bold">Ур. {bot.level}</span>
                             <span>•</span>
-                            <span>{formatNumber(bot.coins)} 🪙</span>
+                            <span>{bot.dealRank}</span>
                           </div>
                         </div>
                       </div>
@@ -965,7 +977,8 @@ export const DealModal: React.FC<DealModalProps> = ({
                 <span className="text-[10px] text-emerald-400 font-bold">Синхронный бой</span>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 text-center">
+              {/* 5 Betting Modes */}
+              <div className="grid grid-cols-3 gap-1.5 text-center">
                 {[5000, 25000, 100000].map((bet) => (
                   <button
                     key={bet}
@@ -979,6 +992,29 @@ export const DealModal: React.FC<DealModalProps> = ({
                     {formatNumber(bet)} 🪙
                   </button>
                 ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5 text-center">
+                <button
+                  onClick={() => setBetCoinsChoice(halfBudget)}
+                  className={`py-2 px-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                    betCoinsChoice === halfBudget
+                      ? 'bg-amber-600 text-white border-amber-400 shadow-md'
+                      : 'bg-zinc-900 text-amber-400 border-zinc-800 hover:border-zinc-700'
+                  }`}
+                >
+                  🌓 50% банка ({formatNumber(halfBudget)})
+                </button>
+                <button
+                  onClick={() => setBetCoinsChoice(playerCoins)}
+                  className={`py-2 px-1 rounded-xl text-xs font-black border transition-all cursor-pointer ${
+                    betCoinsChoice === playerCoins
+                      ? 'bg-red-600 text-white border-red-400 shadow-md'
+                      : 'bg-zinc-900 text-red-400 border-zinc-800 hover:border-zinc-700'
+                  }`}
+                >
+                  🔥 ВА-БАНК ({formatNumber(playerCoins)})
+                </button>
               </div>
 
               <button
@@ -1105,10 +1141,10 @@ export const DealModal: React.FC<DealModalProps> = ({
           </div>
         )}
 
-        {/* DIRECT CHALLENGE PROMPT MODAL */}
+        {/* DIRECT CHALLENGE PROMPT MODAL WITH 5 BETTING MODES */}
         {challengeTargetPlayer && !sentChallengeId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-zinc-900 border border-red-500/60 w-full max-w-xs rounded-3xl p-4 text-center space-y-3 shadow-2xl">
+            <div className="bg-zinc-900 border border-red-500/60 w-full max-w-sm rounded-3xl p-5 text-center space-y-3.5 shadow-2xl">
               <div className="w-12 h-12 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/40 mx-auto flex items-center justify-center text-2xl">
                 ⚔️
               </div>
@@ -1117,17 +1153,21 @@ export const DealModal: React.FC<DealModalProps> = ({
                 <p className="text-xs text-zinc-400 mt-0.5">
                   Игрок: <strong className="text-emerald-400">{challengeTargetPlayer.nickname}</strong> (Ур. {challengeTargetPlayer.level})
                 </p>
+                <p className="text-[11px] text-amber-400 font-mono">
+                  Банк соперника: {formatNumber(challengeTargetPlayer.coins)} 🪙
+                </p>
               </div>
 
-              {/* Bet Selection */}
-              <div className="space-y-1 text-left">
+              {/* 5 Bet Modes */}
+              <div className="space-y-1.5 text-left">
                 <span className="text-[10px] text-zinc-400 font-bold block">Выберите ставку коинов:</span>
+                
                 <div className="grid grid-cols-3 gap-1.5 text-center">
                   {[5000, 25000, 100000].map((bet) => (
                     <button
                       key={bet}
                       onClick={() => setBetCoinsChoice(bet)}
-                      className={`py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      className={`py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                         betCoinsChoice === bet
                           ? 'bg-red-600 text-white border-red-400 shadow-md'
                           : 'bg-zinc-950 text-zinc-400 border-zinc-800'
@@ -1137,6 +1177,36 @@ export const DealModal: React.FC<DealModalProps> = ({
                     </button>
                   ))}
                 </div>
+
+                <div className="grid grid-cols-2 gap-1.5 text-center pt-0.5">
+                  <button
+                    onClick={() => setBetCoinsChoice(halfBudget)}
+                    className={`py-2 px-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      betCoinsChoice === halfBudget
+                        ? 'bg-amber-600 text-white border-amber-400 shadow-md'
+                        : 'bg-zinc-950 text-amber-400 border-zinc-800'
+                    }`}
+                  >
+                    🌓 50% банка ({formatNumber(halfBudget)})
+                  </button>
+
+                  <button
+                    onClick={() => setBetCoinsChoice(maxAllInBet)}
+                    className={`py-2 px-1 rounded-xl text-xs font-black border transition-all cursor-pointer ${
+                      betCoinsChoice === maxAllInBet
+                        ? 'bg-red-600 text-white border-red-400 shadow-md'
+                        : 'bg-zinc-950 text-red-400 border-zinc-800'
+                    }`}
+                  >
+                    🔥 ВА-БАНК ({formatNumber(maxAllInBet)})
+                  </button>
+                </div>
+
+                {challengeTargetPlayer.coins < playerCoins && (
+                  <p className="text-[10px] text-amber-400/90 text-center font-bold">
+                    ⚠️ Ва-банк ограничен банком соперника ({formatNumber(challengeTargetPlayer.coins)} 🪙)
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2 pt-2">
@@ -1145,7 +1215,7 @@ export const DealModal: React.FC<DealModalProps> = ({
                   className="py-2.5 px-2 rounded-xl bg-gradient-to-r from-red-600 to-amber-500 hover:brightness-110 text-white font-black text-xs shadow-md flex items-center justify-center gap-1 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>Отправить</span>
+                  <span>Отправить ({formatNumber(betCoinsChoice)} 🪙)</span>
                 </button>
                 <button
                   onClick={() => setChallengeTargetPlayer(null)}
@@ -1215,7 +1285,7 @@ export const DealModal: React.FC<DealModalProps> = ({
                 className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:brightness-110 text-black font-black text-xs shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Swords className="w-4 h-4" />
-                <span>Сразиться с топ-ботом (без ожидания)</span>
+                <span>Сразиться с адаптивным ботом</span>
               </button>
 
               <button
