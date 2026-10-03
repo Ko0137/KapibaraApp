@@ -58,6 +58,9 @@ export function getDefaultSaveData(): GameSaveData {
     dealHistory: [],
     unlockedSecretEvents: [],
     respecTokens: 1,
+    wheelSpinsToday: 0,
+    lastWheelSpinDate: today,
+    claimedWheelSectorIdsToday: [],
   };
 }
 
@@ -113,6 +116,9 @@ export function parseAndMergeSave(raw: string | null): GameSaveData | null {
       dealHistory: Array.isArray(parsed.dealHistory) ? parsed.dealHistory : [],
       unlockedSecretEvents: Array.isArray(parsed.unlockedSecretEvents) ? parsed.unlockedSecretEvents : [],
       respecTokens: typeof parsed.respecTokens === 'number' ? parsed.respecTokens : 1,
+      wheelSpinsToday: typeof parsed.wheelSpinsToday === 'number' ? parsed.wheelSpinsToday : 0,
+      lastWheelSpinDate: typeof parsed.lastWheelSpinDate === 'string' ? parsed.lastWheelSpinDate : defaults.lastWheelSpinDate,
+      claimedWheelSectorIdsToday: Array.isArray(parsed.claimedWheelSectorIdsToday) ? parsed.claimedWheelSectorIdsToday : [],
       lastSavedTimestamp: parsed.lastSavedTimestamp || Date.now(),
     };
   } catch (err) {

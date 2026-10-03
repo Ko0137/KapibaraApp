@@ -304,6 +304,9 @@ export interface GameSaveData {
   dailyStreak: number;
   lastDailyClaimTimestamp: number;
   lastWheelSpinTimestamp: number;
+  wheelSpinsToday?: number; // max 3 per day
+  lastWheelSpinDate?: string; // YYYY-MM-DD
+  claimedWheelSectorIdsToday?: string[]; // IDs of rewards claimed today (prevents duplicates)
   dailyComboClaimedDate?: string;
   quests: DailyQuest[];
   activeBoosts: ActiveBoost[];

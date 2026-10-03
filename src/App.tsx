@@ -18,7 +18,7 @@ import {
 } from './types/game';
 import { GAME_LEVELS } from './data/levels';
 import { getCardUpgradeCost } from './utils/cardEconomics';
-import { DEFAULT_UPGRADES, DEFAULT_ARTIFACTS } from './data/upgrades';
+import { DEFAULT_UPGRADES, DEFAULT_ARTIFACTS, getCurrentWeeklyWheelSkin } from './data/upgrades';
 import { HAMSTER_CARDS, DAILY_COMBO_CARD_IDS, DAILY_COMBO_REWARD_COINS } from './data/cards';
 import { CHARACTER_SKINS, CHARACTER_HATS, HAMSTER_LEAGUES } from './data/skins';
 import { LEVEL_PERKS } from './data/perks';
@@ -1172,34 +1172,73 @@ export default function App() {
     });
   };
 
-  // Spin Lucky Wheel
-  const handleSpinWheel = (reward: any, costGems: number) => {
+  // Spin Lucky Wheel with Happy Hour bonus & daily duplicate tracking
+  const handleSpinWheel = (reward: any, costGems: number, isHappyHour: boolean = false) => {
     hapticEffects.crit();
+    const todayStr = new Date().toISOString().split('T')[0];
+
     setSaveData((prev) => {
+      const isNewDay = prev.lastWheelSpinDate !== todayStr;
+      const currentSpins = isNewDay ? 0 : prev.wheelSpinsToday || 0;
+      const currentClaimedSectors = isNewDay ? [] : prev.claimedWheelSectorIdsToday || [];
+
+      const happyMultiplier = isHappyHour ? 1.5 : 1.0;
       let newCoins = prev.coins;
       let newGems = prev.gems - costGems;
+      let newPerkPoints = prev.perkPoints || 0;
+      let newRespecTokens = prev.respecTokens || 0;
+      let newEnergy = prev.energy;
+      let unlockedSkinIds = [...prev.unlockedSkinIds];
       const newBoosts = [...prev.activeBoosts];
 
-      if (reward.type === 'coins' || reward.type === 'jackpot') {
-        newCoins += reward.amount;
-        if (reward.gems) newGems += reward.gems;
+      if (reward.type === 'coins') {
+        const addedCoins = Math.round((reward.amount || 0) * happyMultiplier);
+        newCoins += addedCoins;
       } else if (reward.type === 'gems') {
-        newGems += reward.amount;
+        const addedGems = Math.round((reward.amount || 0) * happyMultiplier);
+        newGems += addedGems;
       } else if (reward.type === 'boost') {
         newBoosts.push({
           multiplier: reward.multiplier || 3,
-          expiresAt: Date.now() + reward.amount * 60 * 1000,
+          expiresAt: Date.now() + (reward.amount || 15) * 60 * 1000,
           type: 'wheel',
         });
+      } else if (reward.type === 'weekly_skin') {
+        const weeklySkin = getCurrentWeeklyWheelSkin();
+        if (!unlockedSkinIds.includes(weeklySkin.id)) {
+          unlockedSkinIds.push(weeklySkin.id);
+        }
+        addNotification('👑 МИФИЧЕСКИЙ ДЖЕКПОТ!', `Вы выбили скин недели: ${weeklySkin.name}!`, 'achievement', '👑');
+      } else if (reward.type === 'perk_points') {
+        newPerkPoints += reward.amount || 2;
+        addNotification('✦ Очки Душ!', `Получено +${reward.amount || 2} очка талантов!`, 'level', '✦');
+      } else if (reward.type === 'respec_token') {
+        newRespecTokens += reward.amount || 1;
+        addNotification('🌀 Сброс Билда!', 'Получен жетон сброса древа навыков!', 'achievement', '🌀');
+      } else if (reward.type === 'full_energy') {
+        newEnergy = currentMaxEnergy;
       }
 
-      return {
+      const updated = {
         ...prev,
         coins: newCoins,
         gems: newGems,
+        energy: newEnergy,
+        perkPoints: newPerkPoints,
+        respecTokens: newRespecTokens,
+        unlockedSkinIds,
+        wheelSpinsToday: currentSpins + 1,
+        lastWheelSpinDate: todayStr,
+        claimedWheelSectorIdsToday: [...currentClaimedSectors, reward.id],
         lastWheelSpinTimestamp: Date.now(),
         activeBoosts: newBoosts,
+        lastSavedTimestamp: Date.now(),
       };
+
+      saveGameLocally(updated, tgUser?.id);
+      saveUserProgress(updated);
+      saveToTelegramCloud(updated);
+      return updated;
     });
   };
 
@@ -2140,7 +2179,18 @@ export default function App() {
           dailyStreak={saveData.dailyStreak}
           lastDailyClaimTimestamp={saveData.lastDailyClaimTimestamp}
           lastWheelSpinTimestamp={saveData.lastWheelSpinTimestamp}
+          wheelSpinsToday={
+            saveData.lastWheelSpinDate === new Date().toISOString().split('T')[0]
+              ? saveData.wheelSpinsToday || 0
+              : 0
+          }
+          claimedWheelSectorIdsToday={
+            saveData.lastWheelSpinDate === new Date().toISOString().split('T')[0]
+              ? saveData.claimedWheelSectorIdsToday || []
+              : []
+          }
           gems={saveData.gems}
+          playerLevel={saveData.level}
           quests={saveData.quests}
           onClaimDaily={handleClaimDaily}
           onSpinWheel={handleSpinWheel}
