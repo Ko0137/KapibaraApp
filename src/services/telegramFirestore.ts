@@ -35,8 +35,11 @@ export const loadUserProgress = async (): Promise<GameSaveData | null> => {
 
     if (docSnap.exists()) {
       const data = docSnap.data();
-      const jsonStr = typeof data.saveData === 'string' ? data.saveData : JSON.stringify(data);
-      return parseAndMergeSave(jsonStr);
+      if (typeof data.saveData === 'string') {
+        const parsed = parseAndMergeSave(data.saveData);
+        if (parsed) return parsed;
+      }
+      return parseAndMergeSave(JSON.stringify(data));
     }
   } catch (error) {
     console.warn('Firestore load progress warning:', error);
@@ -54,14 +57,21 @@ export const saveUserProgress = async (
 
     const docRef = doc(db, 'users', userId);
 
-    // Deeply sanitize data: remove undefined values
+    const fullSaveJson = JSON.stringify({
+      ...data,
+      userId,
+      lastSavedTimestamp: now,
+    });
+
     const sanitizedData = removeUndefined({
       ...data,
       userId,
+      saveData: fullSaveJson, // Explicit JSON string backup guarantees zero perks loss
       perks: data.perks || {},
       perkPoints: data.perkPoints || 0,
+      respecTokens: data.respecTokens ?? 1,
       lastSavedTimestamp: now,
-      cloudSyncVersion: 3,
+      cloudSyncVersion: 4,
     });
 
     await setDoc(docRef, sanitizedData, { merge: true });

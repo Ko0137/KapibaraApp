@@ -130,16 +130,17 @@ export default function App() {
         // 2. Try Telegram Cloud storage
         const tgCloudSave = await loadFromTelegramCloud();
         // 3. Try LocalStorage
-        const localSave = loadGameLocally();
+        const localSave = loadGameLocally(tgUser?.id);
         
         const candidates = [firestoreSave, tgCloudSave, localSave].filter(Boolean) as GameSaveData[];
         
         let freshest: GameSaveData | null = null;
         if (candidates.length > 0) {
-          // Sort by highest level, total coins, and timestamp
           freshest = candidates.reduce((prev, curr) => {
-            const prevScore = (prev.level || 1) * 100000 + (prev.coins || 0) + Object.keys(prev.perks || {}).length * 10000;
-            const currScore = (curr.level || 1) * 100000 + (curr.coins || 0) + Object.keys(curr.perks || {}).length * 10000;
+            const prevPerksCount = Object.keys(prev.perks || {}).length;
+            const currPerksCount = Object.keys(curr.perks || {}).length;
+            const prevScore = (prev.level || 1) * 100000 + prevPerksCount * 50000 + (prev.perkPoints || 0) * 10000 + (prev.coins || 0) * 0.001;
+            const currScore = (curr.level || 1) * 100000 + currPerksCount * 50000 + (curr.perkPoints || 0) * 10000 + (curr.coins || 0) * 0.001;
             if (currScore > prevScore) return curr;
             if (prevScore > currScore) return prev;
             return (curr.lastSavedTimestamp || 0) >= (prev.lastSavedTimestamp || 0) ? curr : prev;
@@ -1007,6 +1008,7 @@ export default function App() {
       };
       saveGameLocally(updated, tgUser?.id);
       saveUserProgress(updated);
+      saveToTelegramCloud(updated);
       updatePlayerPresence(updated, tgUser);
       return updated;
     });
@@ -1041,6 +1043,7 @@ export default function App() {
       };
       saveGameLocally(updated, tgUser?.id);
       saveUserProgress(updated);
+      saveToTelegramCloud(updated);
       updatePlayerPresence(updated, tgUser);
       return updated;
     });
@@ -1101,15 +1104,25 @@ export default function App() {
     hapticEffects.prestigeReset();
 
 
-    setSaveData((prev) => ({
-      ...prev,
-      level: 1,
-      coins: 0,
-      currentLevelClicks: 0,
-      upgrades: {},
-      prestigeCount: prev.prestigeCount + 1,
-      cosmicShards: prev.cosmicShards + shardsEarned,
-    }));
+    setSaveData((prev) => {
+      const updated = {
+        ...prev,
+        level: 1,
+        coins: 0,
+        currentLevelClicks: 0,
+        upgrades: {},
+        perks: prev.perks || {},
+        perkPoints: prev.perkPoints || 0,
+        prestigeCount: prev.prestigeCount + 1,
+        cosmicShards: prev.cosmicShards + shardsEarned,
+        lastSavedTimestamp: Date.now(),
+      };
+      saveGameLocally(updated, tgUser?.id);
+      saveUserProgress(updated);
+      saveToTelegramCloud(updated);
+      updatePlayerPresence(updated, tgUser);
+      return updated;
+    });
   };
 
   // Boss Victory
