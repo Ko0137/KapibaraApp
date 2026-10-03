@@ -1,7 +1,7 @@
 import { GameSaveData } from '../types/game';
 import { INITIAL_DAILY_QUESTS } from '../data/upgrades';
 import { doc, setDoc, getDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
-import { db, ensureAuthenticated, auth } from './firebase';
+import { db, ensureAuthenticated, getPersistentUserId } from './firebase';
 
 const LOCAL_STORAGE_KEY = 'megatap_v1_savegame';
 
@@ -61,60 +61,85 @@ export function getDefaultSaveData(): GameSaveData {
   };
 }
 
-export function getStorageKey(tgUserId?: string | number): string {
-  if (tgUserId) {
-    return `megatap_tg_${tgUserId}`;
-  }
-  return LOCAL_STORAGE_KEY;
-}
-
 export function saveGameLocally(data: GameSaveData, tgUserId?: string | number): void {
   try {
     const payload = {
       ...data,
-      lastSavedTimestamp: Date.now()
+      lastSavedTimestamp: Date.now(),
     };
-    const key = getStorageKey(tgUserId);
-    localStorage.setItem(key, JSON.stringify(payload));
+    const json = JSON.stringify(payload);
+    
+    // Always save to primary key
+    localStorage.setItem(LOCAL_STORAGE_KEY, json);
+
+    // Also save to Telegram user key if specified
+    if (tgUserId) {
+      localStorage.setItem(`megatap_tg_${tgUserId}`, json);
+    }
   } catch (err) {
     console.error('Failed to save to localStorage:', err);
   }
 }
 
+export function parseAndMergeSave(raw: string | null): GameSaveData | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const defaults = getDefaultSaveData();
+    return {
+      ...defaults,
+      ...parsed,
+      perkPoints: typeof parsed.perkPoints === 'number' ? parsed.perkPoints : defaults.perkPoints,
+      perks: (parsed.perks && typeof parsed.perks === 'object') ? parsed.perks : {},
+      upgrades: (parsed.upgrades && typeof parsed.upgrades === 'object') ? parsed.upgrades : {},
+      artifacts: (parsed.artifacts && typeof parsed.artifacts === 'object') ? parsed.artifacts : {},
+      cards: (parsed.cards && typeof parsed.cards === 'object') ? parsed.cards : {},
+      selectedSkinIdBase: parsed.selectedSkinIdBase || parsed.selectedSkinId || 'skin_default',
+      selectedSkinIdOverlay: parsed.selectedSkinIdOverlay || parsed.selectedSkinIdBase || parsed.selectedSkinId || 'skin_default',
+      unlockedSkinIds: Array.isArray(parsed.unlockedSkinIds) && parsed.unlockedSkinIds.length > 0 ? parsed.unlockedSkinIds : ['skin_default'],
+      selectedHatId: parsed.selectedHatId || 'hat_none',
+      unlockedHatIds: Array.isArray(parsed.unlockedHatIds) && parsed.unlockedHatIds.length > 0 ? parsed.unlockedHatIds : ['hat_none'],
+      unlockedAchievements: Array.isArray(parsed.unlockedAchievements) ? parsed.unlockedAchievements : [],
+      customCapybara: parsed.customCapybara || defaults.customCapybara,
+      energy: typeof parsed.energy === 'number' ? parsed.energy : defaults.energy,
+      maxEnergy: typeof parsed.maxEnergy === 'number' ? parsed.maxEnergy : defaults.maxEnergy,
+      fullEnergyBoostsLeft: typeof parsed.fullEnergyBoostsLeft === 'number' ? parsed.fullEnergyBoostsLeft : 6,
+      turboBoostsLeft: typeof parsed.turboBoostsLeft === 'number' ? parsed.turboBoostsLeft : 3,
+      completedBosses: Array.isArray(parsed.completedBosses) ? parsed.completedBosses : [],
+      quests: Array.isArray(parsed.quests) && parsed.quests.length > 0 ? parsed.quests : INITIAL_DAILY_QUESTS,
+      activeBoosts: Array.isArray(parsed.activeBoosts) ? parsed.activeBoosts.filter((b: any) => b.expiresAt > Date.now()) : [],
+      dealStats: parsed.dealStats || defaults.dealStats,
+      dealHistory: Array.isArray(parsed.dealHistory) ? parsed.dealHistory : [],
+      unlockedSecretEvents: Array.isArray(parsed.unlockedSecretEvents) ? parsed.unlockedSecretEvents : [],
+      respecTokens: typeof parsed.respecTokens === 'number' ? parsed.respecTokens : 1,
+      lastSavedTimestamp: parsed.lastSavedTimestamp || Date.now(),
+    };
+  } catch (err) {
+    console.error('Failed to parse save string:', err);
+    return null;
+  }
+}
+
 export function loadGameLocally(tgUserId?: string | number): GameSaveData {
   try {
-    const key = getStorageKey(tgUserId);
-    const raw = localStorage.getItem(key);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      const defaults = getDefaultSaveData();
-      return {
-        ...defaults,
-        ...parsed,
-        perkPoints: typeof parsed.perkPoints === 'number' ? parsed.perkPoints : 0,
-        perks: parsed.perks || {},
-        upgrades: parsed.upgrades || {},
-        artifacts: parsed.artifacts || {},
-        cards: parsed.cards || {},
-        selectedSkinIdBase: parsed.selectedSkinIdBase || parsed.selectedSkinId || 'skin_default',
-        selectedSkinIdOverlay: parsed.selectedSkinIdOverlay || parsed.selectedSkinIdBase || parsed.selectedSkinId || 'skin_default',
-        unlockedSkinIds: Array.isArray(parsed.unlockedSkinIds) ? parsed.unlockedSkinIds : ['skin_default'],
-        selectedHatId: parsed.selectedHatId || 'hat_none',
-        unlockedHatIds: Array.isArray(parsed.unlockedHatIds) ? parsed.unlockedHatIds : ['hat_none'],
-        unlockedAchievements: Array.isArray(parsed.unlockedAchievements) ? parsed.unlockedAchievements : [],
-        energy: typeof parsed.energy === 'number' ? parsed.energy : defaults.energy,
-        maxEnergy: typeof parsed.maxEnergy === 'number' ? parsed.maxEnergy : defaults.maxEnergy,
-        fullEnergyBoostsLeft: typeof parsed.fullEnergyBoostsLeft === 'number' ? parsed.fullEnergyBoostsLeft : 6,
-        turboBoostsLeft: typeof parsed.turboBoostsLeft === 'number' ? parsed.turboBoostsLeft : 3,
-        completedBosses: parsed.completedBosses || [],
-        quests: parsed.quests && parsed.quests.length ? parsed.quests : INITIAL_DAILY_QUESTS,
-        activeBoosts: (parsed.activeBoosts || []).filter((b: any) => b.expiresAt > Date.now()),
-        dealStats: parsed.dealStats || defaults.dealStats,
-        dealHistory: Array.isArray(parsed.dealHistory) ? parsed.dealHistory : [],
-        unlockedSecretEvents: Array.isArray(parsed.unlockedSecretEvents) ? parsed.unlockedSecretEvents : [],
-        respecTokens: typeof parsed.respecTokens === 'number' ? parsed.respecTokens : 1,
-      };
+    let rawTg: string | null = null;
+    if (tgUserId) {
+      rawTg = localStorage.getItem(`megatap_tg_${tgUserId}`);
     }
+    const rawDefault = localStorage.getItem(LOCAL_STORAGE_KEY);
+
+    const saveTg = parseAndMergeSave(rawTg);
+    const saveDef = parseAndMergeSave(rawDefault);
+
+    if (saveTg && saveDef) {
+      // Return whichever has newer timestamp or higher level/taps
+      const tgScore = (saveTg.lastSavedTimestamp || 0) + (saveTg.level || 1) * 10000;
+      const defScore = (saveDef.lastSavedTimestamp || 0) + (saveDef.level || 1) * 10000;
+      return tgScore >= defScore ? saveTg : saveDef;
+    }
+    if (saveTg) return saveTg;
+    if (saveDef) return saveDef;
   } catch (err) {
     console.error('Failed to load local save:', err);
   }
@@ -157,27 +182,6 @@ export async function saveGameToCloud(data: GameSaveData, customCloudId?: string
 
     await setDoc(docRef, record);
 
-    // Sync to competitive leaderboard collection as well
-    try {
-      const user = auth.currentUser;
-      if (user) {
-        const leaderRef = doc(db, 'leaderboard', user.uid);
-        await setDoc(leaderRef, {
-          userId: user.uid,
-          cloudId: cleanId,
-          nickname: data.playerName || 'Игрок',
-          level: Number(data.level) || 1,
-          prestige: Number(data.prestigeCount) || 0,
-          totalCoinsEarned: Number(data.totalCoinsEarned) || Number(data.coins) || 0,
-          bossesDefeated: Array.isArray(data.completedBosses) ? data.completedBosses.length : 0,
-          verifiedFair: true,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-      }
-    } catch (e) {
-      console.warn('Leaderboard auto-update failed:', e);
-    }
-
     return {
       success: true,
       cloudId: cleanId,
@@ -215,11 +219,8 @@ export async function loadGameFromCloud(cloudId: string): Promise<{ success: boo
       parsedSave = record.saveData;
     }
 
-    const mergedData: GameSaveData = {
-      ...getDefaultSaveData(),
-      ...parsedSave,
-      cloudId: record.cloudId
-    };
+    const mergedData = parseAndMergeSave(typeof parsedSave === 'string' ? parsedSave : JSON.stringify(parsedSave)) || getDefaultSaveData();
+    mergedData.cloudId = record.cloudId;
 
     // Save locally as well
     saveGameLocally(mergedData);
@@ -282,13 +283,7 @@ export function importSaveString(encoded: string): GameSaveData | null {
     if (!jsonStr.startsWith('{')) {
       jsonStr = decodeURIComponent(escape(atob(jsonStr)));
     }
-    const parsed = JSON.parse(jsonStr);
-    if (typeof parsed.level === 'number' && typeof parsed.coins === 'number') {
-      return {
-        ...getDefaultSaveData(),
-        ...parsed
-      };
-    }
+    return parseAndMergeSave(jsonStr);
   } catch (err) {
     console.error('Import error:', err);
   }

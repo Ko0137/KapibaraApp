@@ -6,65 +6,32 @@ service cloud.firestore {
       return id is string && id.size() >= 1 && id.size() <= 128;
     }
 
-    function isAuthenticated() {
-      return request.auth != null && request.auth.uid != null;
-    }
-
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    function isValidLeaderboardEntry(data) {
-      let requiredKeys = ['userId', 'nickname', 'level', 'prestige', 'totalCoinsEarned', 'updatedAt'];
-      let allowedKeys = ['userId', 'nickname', 'level', 'prestige', 'totalCoinsEarned', 'bossesDefeated', 'verifiedFair', 'updatedAt'];
-
-      return data.keys().hasAll(requiredKeys) &&
-             data.keys().hasOnly(allowedKeys) &&
-             data.userId == request.auth.uid &&
-             data.nickname is string &&
-             data.nickname.size() >= 1 &&
-             data.nickname.size() <= 64 &&
-             data.level is number &&
-             data.level >= 1 &&
-             data.prestige is number &&
-             data.prestige >= 0 &&
-             data.totalCoinsEarned is number &&
-             data.totalCoinsEarned >= 0 &&
-             data.updatedAt is string;
-    }
-
     // Leaderboard
     match /leaderboard/{userId} {
       allow read: if true;
-      allow create, update: if isValidId(userId) && isOwner(userId) && isValidLeaderboardEntry(request.resource.data);
-      allow delete: if isValidId(userId) && isOwner(userId);
+      allow create, update, delete: if isValidId(userId);
     }
 
     // Active Live Players Lobby for PvP & Matchmaking
     match /activePlayers/{userId} {
       allow read: if true;
-      allow create, update: if isValidId(userId) && isOwner(userId);
-      allow delete: if isValidId(userId) && isOwner(userId);
+      allow create, update, delete: if isValidId(userId);
     }
 
     // Live PvP Duel Rooms
     match /duelRooms/{roomId} {
       allow read: if true;
-      allow create: if isAuthenticated() && request.resource.data.hostId == request.auth.uid;
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      allow create, update, delete: if isValidId(roomId);
     }
 
     // User Auto-Saves
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read, write: if isValidId(userId);
     }
 
     // Cloud Saves by Code
     match /cloudSaves/{cloudId} {
-      allow read: if true;
-      allow create, update: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      allow read, write: if isValidId(cloudId);
     }
 
     // Default catch-all

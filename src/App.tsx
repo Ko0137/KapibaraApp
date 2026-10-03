@@ -225,11 +225,19 @@ export default function App() {
       setTgUser(user);
       const userHandle = user.username ? `@${user.username}` : `${user.first_name} ${user.last_name || ''}`.trim();
       
-      // Load user-specific save from localStorage / cloud for this individual Telegram user ID!
-      const tgSave = loadGameLocally(user.id);
-      setSaveData({
-        ...tgSave,
-        playerName: userHandle || tgSave.playerName,
+      setSaveData((prev) => {
+        const tgSave = loadGameLocally(user.id);
+        const prevPerksCount = Object.keys(prev.perks || {}).length;
+        const tgPerksCount = Object.keys(tgSave.perks || {}).length;
+        
+        // Pick whichever save is further along and preserve perks
+        const base = (prev.lastSavedTimestamp >= (tgSave.lastSavedTimestamp || 0) || prevPerksCount >= tgPerksCount) ? prev : tgSave;
+        const merged = {
+          ...base,
+          playerName: userHandle || base.playerName,
+        };
+        saveGameLocally(merged, user.id);
+        return merged;
       });
 
       addNotification(
@@ -887,14 +895,19 @@ export default function App() {
   const handleUpgradePerk = (perkId: string) => {
     setSaveData((prev) => {
       const currentRank = prev.perks?.[perkId] || 0;
-      return {
+      const updated = {
         ...prev,
         perkPoints: Math.max(0, prev.perkPoints - 1),
         perks: {
           ...prev.perks,
           [perkId]: currentRank + 1,
         },
+        lastSavedTimestamp: Date.now(),
       };
+      saveGameLocally(updated, tgUser?.id);
+      saveUserProgress(updated);
+      updatePlayerPresence(updated, tgUser);
+      return updated;
     });
   };
 
@@ -917,13 +930,18 @@ export default function App() {
         updatedGems = Math.max(0, updatedGems - 50);
       }
 
-      return {
+      const updated = {
         ...prev,
         perkPoints: prev.perkPoints + totalSpent,
         perks: {},
         gems: updatedGems,
         respecTokens: updatedTokens,
+        lastSavedTimestamp: Date.now(),
       };
+      saveGameLocally(updated, tgUser?.id);
+      saveUserProgress(updated);
+      updatePlayerPresence(updated, tgUser);
+      return updated;
     });
   };
 

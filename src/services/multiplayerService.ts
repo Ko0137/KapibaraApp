@@ -11,9 +11,8 @@ import {
   where,
   orderBy,
   limit,
-  serverTimestamp,
 } from 'firebase/firestore';
-import { db, ensureAuthenticated, auth } from './firebase';
+import { db, ensureAuthenticated, getPersistentUserId } from './firebase';
 import { GameSaveData, DealOpponent, CustomCapybaraConfig } from '../types/game';
 import { TelegramUser } from '../utils/telegram';
 
@@ -46,7 +45,7 @@ export interface DuelRoomData {
   updatedAt: number;
 }
 
-// Fallback seed players when database is newly populated
+// Fallback seed players for when database is newly populated
 const SEED_OPPONENTS: DealOpponent[] = [
   {
     id: 'TAP-DUB1',
@@ -139,7 +138,7 @@ export async function updatePlayerPresence(
 ): Promise<void> {
   try {
     const user = await ensureAuthenticated();
-    if (!user) return;
+    const uid = user.uid || getPersistentUserId();
 
     const perks = saveData.perks || {};
     let weapon: string | undefined = undefined;
@@ -159,10 +158,10 @@ export async function updatePlayerPresence(
 
     const cleanNick = tgUser?.username
       ? `@${tgUser.username}`
-      : saveData.playerName || `Капибара #${user.uid.slice(0, 4)}`;
+      : saveData.playerName || `Капибара #${uid.slice(-4)}`;
 
     const playerRecord = {
-      userId: user.uid,
+      userId: uid,
       nickname: cleanNick,
       level: lvl,
       coins: Math.floor(saveData.coins || 0),
@@ -181,7 +180,7 @@ export async function updatePlayerPresence(
       telegramId: tgUser?.id || null,
     };
 
-    const docRef = doc(db, 'activePlayers', user.uid);
+    const docRef = doc(db, 'activePlayers', uid);
     await setDoc(docRef, playerRecord, { merge: true });
   } catch (err) {
     console.warn('Failed to update player multiplayer presence:', err);
@@ -203,13 +202,13 @@ export function subscribeToActivePlayers(
       (snapshot) => {
         const fetched: DealOpponent[] = [];
         const now = Date.now();
-        const currentUserId = auth.currentUser?.uid;
+        const currentUid = getPersistentUserId();
 
         snapshot.forEach((docSnap) => {
           const d = docSnap.data();
-          if (docSnap.id === currentUserId) return; // Don't fight oneself
+          if (docSnap.id === currentUid) return; // Don't fight oneself
 
-          const isOnline = now - (d.lastActive || 0) < 1000 * 60 * 10; // Active in last 10 mins
+          const isOnline = now - (d.lastActive || 0) < 1000 * 60 * 15; // Active in last 15 mins
           const lvl = Number(d.level) || 1;
           const tier = lvl > 265 ? 'immortal' : lvl > 165 ? 'divine' : 'mortal';
 
@@ -242,7 +241,7 @@ export function subscribeToActivePlayers(
           });
         });
 
-        // Merge with seed opponents if list is short
+        // Merge with seed opponents to ensure rich matchmaking
         const combined = [...fetched];
         SEED_OPPONENTS.forEach((seed) => {
           if (!combined.some((o) => o.id === seed.id)) {
@@ -250,8 +249,8 @@ export function subscribeToActivePlayers(
           }
         });
 
-        const onlineCount = combined.filter((p) => p.isOnline).length + 1; // +1 includes self
-        callback(combined, onlineCount);
+        const onlineCount = combined.filter((p) => p.isOnline).length;
+        callback(combined, Math.max(1, onlineCount));
       },
       (error) => {
         console.warn('Multiplayer listener error, using fallback:', error);
@@ -276,14 +275,14 @@ export async function createDuelRoom(
 ): Promise<{ success: boolean; roomId?: string; error?: string }> {
   try {
     const user = await ensureAuthenticated();
-    if (!user) return { success: false, error: 'Пользователь не авторизован' };
+    const hostUid = user.uid || getPersistentUserId();
 
     const roomId = `DUEL-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
     const roomRef = doc(db, 'duelRooms', roomId);
 
     const roomData: DuelRoomData = {
       roomId,
-      hostId: user.uid,
+      hostId: hostUid,
       hostName: hostPlayer.nickname,
       hostLevel: hostPlayer.level,
       hostAvatar: hostPlayer.avatarIcon,
@@ -317,7 +316,7 @@ export async function joinDuelRoom(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const user = await ensureAuthenticated();
-    if (!user) return { success: false, error: 'Пользователь не авторизован' };
+    const guestUid = user.uid || getPersistentUserId();
 
     const roomRef = doc(db, 'duelRooms', roomId);
     const snap = await getDoc(roomRef);
@@ -332,7 +331,7 @@ export async function joinDuelRoom(
     }
 
     await updateDoc(roomRef, {
-      guestId: user.uid,
+      guestId: guestUid,
       guestName: guestPlayer.nickname,
       guestLevel: guestPlayer.level,
       guestAvatar: guestPlayer.avatarIcon,
@@ -457,10 +456,8 @@ export function listenToWaitingRooms(callback: (rooms: DuelRoomData[]) => void):
       q,
       (snapshot) => {
         const rooms: DuelRoomData[] = [];
-        const currentUserId = auth.currentUser?.uid;
         snapshot.forEach((d) => {
           const r = d.data() as DuelRoomData;
-          // Filter out expired rooms (> 5 min old)
           if (Date.now() - r.createdAt < 1000 * 60 * 5) {
             rooms.push(r);
           }
