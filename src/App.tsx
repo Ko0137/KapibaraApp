@@ -107,6 +107,8 @@ export default function App() {
   const [isNeuromuscularActive, setIsNeuromuscularActive] = useState(false);
   const [neuromuscularCooldown, setNeuromuscularCooldown] = useState(0);
 
+  const isLoadedRef = useRef(false);
+
   // Load and Autosave logic
   useEffect(() => {
     let isMounted = true;
@@ -119,18 +121,20 @@ export default function App() {
         const firestoreSave = await loadUserProgress();
         // 2. Try Telegram Cloud storage
         const tgCloudSave = await loadFromTelegramCloud();
-        
+        // 3. Try LocalStorage
         const localSave = loadGameLocally();
         
-        // Pick the freshest save data
-        let freshest: GameSaveData | null = null;
         const candidates = [firestoreSave, tgCloudSave, localSave].filter(Boolean) as GameSaveData[];
         
+        let freshest: GameSaveData | null = null;
         if (candidates.length > 0) {
+          // Sort by highest level, total coins, and timestamp
           freshest = candidates.reduce((prev, curr) => {
-            const prevTime = prev.lastSavedTimestamp || 0;
-            const currTime = curr.lastSavedTimestamp || 0;
-            return currTime > prevTime ? curr : prev;
+            const prevScore = (prev.level || 1) * 100000 + (prev.coins || 0) + Object.keys(prev.perks || {}).length * 10000;
+            const currScore = (curr.level || 1) * 100000 + (curr.coins || 0) + Object.keys(curr.perks || {}).length * 10000;
+            if (currScore > prevScore) return curr;
+            if (prevScore > currScore) return prev;
+            return (curr.lastSavedTimestamp || 0) >= (prev.lastSavedTimestamp || 0) ? curr : prev;
           });
         }
         
@@ -138,11 +142,14 @@ export default function App() {
           setSaveData(freshest);
           setCloudSynced(true);
           setLastCloudSaveTime(Date.now());
-          // Sync presence
           updatePlayerPresence(freshest, tgUser);
         }
       } catch (err) {
         console.warn('Auto cloud load failed:', err);
+      } finally {
+        if (isMounted) {
+          isLoadedRef.current = true;
+        }
       }
     };
     
@@ -150,8 +157,8 @@ export default function App() {
 
     // Autosave on visibility change
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        saveGameLocally(saveData);
+      if (document.visibilityState === 'hidden' && isLoadedRef.current) {
+        saveGameLocally(saveData, tgUser?.id);
         saveToTelegramCloud(saveData);
         saveUserProgress(saveData);
         updatePlayerPresence(saveData, tgUser);
@@ -167,13 +174,15 @@ export default function App() {
     };
   }, []); // Run once on mount
 
-  // Local save on every change
+  // Local save on every change (only after initial load completes)
   useEffect(() => {
-    saveGameLocally(saveData);
-  }, [saveData]);
+    if (!isLoadedRef.current) return;
+    saveGameLocally(saveData, tgUser?.id);
+  }, [saveData, tgUser]);
 
   // Background cloud sync to Firestore & Telegram Cloud
   useEffect(() => {
+    if (!isLoadedRef.current) return;
     setIsCloudSaving(true);
     const timer = setTimeout(async () => {
       try {
@@ -189,12 +198,13 @@ export default function App() {
       } finally {
         setIsCloudSaving(false);
       }
-    }, 2500);
+    }, 2000);
     return () => clearTimeout(timer);
   }, [saveData, tgUser]);
 
   // Periodic Multiplayer Presence Heartbeat (every 30s)
   useEffect(() => {
+    if (!isLoadedRef.current) return;
     const heartbeat = setInterval(() => {
       updatePlayerPresence(saveData, tgUser);
     }, 30000);
