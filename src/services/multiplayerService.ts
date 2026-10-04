@@ -423,16 +423,42 @@ export async function updateDuelTap(
 }
 
 /**
- * Mark duel as finished and declare winner
+ * Mark duel as finished, declare winner, and sync balances
  */
-export async function finishDuelRoom(roomId: string, winnerId: string): Promise<void> {
+export async function finishDuelRoom(
+  roomId: string, 
+  winnerId: string, 
+  loserId?: string, 
+  betCoins?: number
+): Promise<void> {
   try {
     const roomRef = doc(db, 'duelRooms', roomId);
     await updateDoc(roomRef, {
       status: 'finished',
       winnerId,
+      loserId: loserId || null,
+      betCoins: betCoins || null,
       updatedAt: Date.now(),
     });
+
+    // Directly adjust Firestore balance for loser if loserId and betCoins provided
+    if (loserId && betCoins && betCoins > 0) {
+      try {
+        const loserDocRef = doc(db, 'users', loserId);
+        const loserSnap = await getDoc(loserDocRef);
+        if (loserSnap.exists()) {
+          const loserData = loserSnap.data();
+          const curCoins = Number(loserData.coins) || 0;
+          const newCoins = Math.max(0, curCoins - betCoins);
+          await updateDoc(loserDocRef, {
+            coins: newCoins,
+            lastSavedTimestamp: Date.now(),
+          });
+        }
+      } catch (e) {
+        console.warn('Loser balance direct update non-blocking:', e);
+      }
+    }
   } catch (e) {
     console.warn('Failed to finish duel room:', e);
   }
@@ -509,6 +535,7 @@ export async function sendDuelChallenge(
   targetPlayer: {
     id: string;
     nickname: string;
+    telegramId?: string | number | null;
   },
   betCoins: number
 ): Promise<{ success: boolean; challengeId?: string; error?: string }> {
@@ -530,7 +557,7 @@ export async function sendDuelChallenge(
       betCoins,
       status: 'pending',
       createdAt: Date.now(),
-      expiresAt: Date.now() + 25000,
+      expiresAt: Date.now() + 30000,
     };
 
     await setDoc(docRef, challengeData);
@@ -542,30 +569,50 @@ export async function sendDuelChallenge(
 }
 
 /**
- * Subscribes to incoming duel challenges for the current player
+ * Subscribes to incoming duel challenges for the current player across all valid identifiers (UID, Telegram ID, Nickname)
  */
 export function listenToIncomingChallenges(
-  myUserId: string,
+  myUserIds: string | string[],
   callback: (challenge: DuelChallengeData | null) => void
 ): () => void {
   try {
     const colRef = collection(db, 'duelChallenges');
     const q = query(
       colRef,
-      where('toUserId', '==', myUserId),
       where('status', '==', 'pending'),
-      limit(5)
+      limit(25)
     );
+
+    const rawIds = Array.isArray(myUserIds) ? myUserIds : [myUserIds];
+    const cleanIds = rawIds.filter(Boolean).map((id) => id.toString().toLowerCase().trim());
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
         const now = Date.now();
         let validChallenge: DuelChallengeData | null = null;
+
         snapshot.forEach((d) => {
           const c = d.data() as DuelChallengeData;
           if (c.expiresAt > now && !validChallenge) {
-            validChallenge = c;
+            const toUid = (c.toUserId || '').toLowerCase().trim();
+            const toNm = (c.toName || '').toLowerCase().trim();
+            const toNmClean = toNm.replace('@', '');
+
+            const isForMe = cleanIds.some((id) => {
+              const clean = id.replace('@', '');
+              return (
+                toUid === id ||
+                toNm === id ||
+                toNmClean === clean ||
+                toUid === `tg_${clean}` ||
+                `tg_${toUid}` === id
+              );
+            });
+
+            if (isForMe) {
+              validChallenge = c;
+            }
           }
         });
         callback(validChallenge);

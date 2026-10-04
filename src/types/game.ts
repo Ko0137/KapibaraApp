@@ -200,6 +200,7 @@ export interface LeaderboardItem {
 
 export interface DealOpponent {
   id: string;
+  userId?: string;
   nickname: string;
   level: number;
   coins: number;
@@ -214,6 +215,7 @@ export interface DealOpponent {
   isOnline?: boolean;
   isBot?: boolean;
   tier?: LevelTier;
+  telegramId?: string | number | null;
 }
 
 export interface DealStats {

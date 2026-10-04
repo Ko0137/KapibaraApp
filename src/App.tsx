@@ -312,15 +312,25 @@ export default function App() {
 
   // Real-time Incoming Duel Challenges Listener
   const [incomingChallenge, setIncomingChallenge] = useState<DuelChallengeData | null>(null);
+  const [activeDuelRoomId, setActiveDuelRoomId] = useState<string | null>(null);
+  const [activeDuelIsHost, setActiveDuelIsHost] = useState(false);
+
+  const myIdentities = useMemo(() => {
+    const persistentId = getPersistentUserId();
+    const tgHandle = tgUser?.username ? `@${tgUser.username}` : null;
+    const tgRaw = tgUser?.username || null;
+    const tgNum = tgUser?.id ? `tg_${tgUser.id}` : null;
+    const pName = saveData.playerName || null;
+    return [persistentId, tgHandle, tgRaw, tgNum, pName].filter(Boolean) as string[];
+  }, [tgUser, saveData.playerName]);
 
   useEffect(() => {
     if (!isLoadedRef.current) return;
-    const uid = getPersistentUserId();
-    const unsubscribe = listenToIncomingChallenges(uid, (challenge) => {
+    const unsubscribe = listenToIncomingChallenges(myIdentities, (challenge) => {
       setIncomingChallenge(challenge);
     });
     return () => unsubscribe();
-  }, [saveData.playerName]);
+  }, [myIdentities]);
 
   const handleAcceptIncomingChallenge = async (challenge: DuelChallengeData) => {
     const res = await acceptDuelChallenge(challenge, {
@@ -334,6 +344,8 @@ export default function App() {
 
     if (res.success && res.roomId) {
       setIncomingChallenge(null);
+      setActiveDuelRoomId(res.roomId);
+      setActiveDuelIsHost(false);
       setActiveModal('deal');
     }
   };
@@ -2157,6 +2169,8 @@ export default function App() {
         <DealModal
           onClose={() => {
             setIsMandatoryWeeklyDeal(false);
+            setActiveDuelRoomId(null);
+            setActiveDuelIsHost(false);
             setActiveModal('none');
           }}
           playerLevel={saveData.level}
@@ -2177,6 +2191,8 @@ export default function App() {
           dealHistory={saveData.dealHistory || []}
           immortalUnlocked={saveData.immortalUnlocked}
           isMandatoryWeeklyDeal={isMandatoryWeeklyDeal}
+          initialLiveRoomId={activeDuelRoomId}
+          initialIsHost={activeDuelIsHost}
           onCompleteDeal={handleCompleteDeal}
           onPayPenalty={handlePayPenalty}
         />

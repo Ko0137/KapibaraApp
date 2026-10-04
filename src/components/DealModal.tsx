@@ -53,6 +53,8 @@ interface DealModalProps {
   dealHistory?: DealHistoryItem[];
   immortalUnlocked?: boolean;
   isMandatoryWeeklyDeal?: boolean;
+  initialLiveRoomId?: string | null;
+  initialIsHost?: boolean;
   onCompleteDeal: (
     won: boolean, 
     coinsWon: number, 
@@ -79,11 +81,15 @@ export const DealModal: React.FC<DealModalProps> = ({
   dealHistory = [],
   immortalUnlocked = false,
   isMandatoryWeeklyDeal = false,
+  initialLiveRoomId = null,
+  initialIsHost = false,
   onCompleteDeal,
   onPayPenalty,
 }) => {
   const [activeTab, setActiveTab] = useState<'arena' | 'players' | 'live_rooms' | 'history'>('arena');
-  const [phase, setPhase] = useState<'lobby' | 'matching' | 'countdown' | 'battle' | 'result'>('lobby');
+  const [phase, setPhase] = useState<'lobby' | 'matching' | 'countdown' | 'battle' | 'result'>(
+    initialLiveRoomId ? 'countdown' : 'lobby'
+  );
   const [onlineRealPlayers, setOnlineRealPlayers] = useState<DealOpponent[]>([]);
   const [botOpponents, setBotOpponents] = useState<DealOpponent[]>(() => generateAdaptiveBotChampions(playerLevel, playerCoins));
   const [onlineCount, setOnlineCount] = useState(1);
@@ -92,10 +98,10 @@ export const DealModal: React.FC<DealModalProps> = ({
 
   // Live Duel Room state
   const [waitingRooms, setWaitingRooms] = useState<DuelRoomData[]>([]);
-  const [currentLiveRoomId, setCurrentLiveRoomId] = useState<string | null>(null);
+  const [currentLiveRoomId, setCurrentLiveRoomId] = useState<string | null>(initialLiveRoomId || null);
   const [liveRoomData, setLiveRoomData] = useState<DuelRoomData | null>(null);
-  const [isHost, setIsHost] = useState(false);
-  const [betCoinsChoice, setBetCoinsChoice] = useState(10000);
+  const [isHost, setIsHost] = useState(initialIsHost);
+  const [betCoinsChoice, setBetCoinsChoice] = useState(25000);
   const [searchTimer, setSearchTimer] = useState(0);
 
   // Direct 1v1 Challenge Modal state
@@ -317,7 +323,9 @@ export const DealModal: React.FC<DealModalProps> = ({
     }
 
     if (currentLiveRoomId) {
-      finishDuelRoom(currentLiveRoomId, won ? myUid : activeOpponent.id);
+      const loserUid = won ? (activeOpponent.userId || activeOpponent.id) : myUid;
+      const winnerUid = won ? myUid : (activeOpponent.userId || activeOpponent.id);
+      finishDuelRoom(currentLiveRoomId, winnerUid, loserUid, coinsDelta);
     }
 
     const lossDebuff: LossDebuff | undefined = won ? undefined : {
