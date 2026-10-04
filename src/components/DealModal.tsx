@@ -296,9 +296,14 @@ export const DealModal: React.FC<DealModalProps> = ({
     const finalOppClicks = oppClicksRef.current;
 
     const won = forcedWinnerId ? forcedWinnerId === myUid : finalUserClicks >= finalOppClicks;
-    const coinsDelta = currentLiveRoomId
-      ? betCoinsChoice
-      : (won ? Math.max(50000, Math.round(activeOpponent.coins * 0.6)) : penaltyAmount);
+    
+    const duelBet = currentLiveRoomId && liveRoomData?.betCoins
+      ? liveRoomData.betCoins
+      : isMandatoryWeeklyDeal
+        ? Math.max(10000, Math.round(playerCoins * 0.5))
+        : betCoinsChoice;
+
+    const coinsDelta = duelBet;
 
     setBattleResult({ won, coinsDelta });
 
@@ -382,6 +387,9 @@ export const DealModal: React.FC<DealModalProps> = ({
     const unsub = subscribeToDuelRoom(currentLiveRoomId, (room) => {
       if (!room) return;
       setLiveRoomData(room);
+      if (room.betCoins) {
+        setBetCoinsChoice(room.betCoins);
+      }
 
       if ((room.status === 'starting' || (room.guestId && room.status === 'waiting')) && (phase === 'matching' || phase === 'lobby')) {
         setCountdown(3);
@@ -787,18 +795,81 @@ export const DealModal: React.FC<DealModalProps> = ({
                 </div>
               </div>
 
+              {/* Stake info & Bet Selection */}
+              {!isMandatoryWeeklyDeal && (
+                <div className="space-y-2 mt-3 p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-zinc-400 font-bold">Ставка на эту дуэль:</span>
+                    <span className="text-xs font-black text-amber-400 font-mono">{formatNumber(betCoinsChoice)} 🪙</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1.5 text-center">
+                    {[5000, 25000, 100000].map((bet) => (
+                      <button
+                        key={bet}
+                        type="button"
+                        onClick={() => {
+                          hapticEffects.tap();
+                          setBetCoinsChoice(bet);
+                        }}
+                        className={`py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                          betCoinsChoice === bet
+                            ? 'bg-red-600 text-white border-red-400 shadow-md'
+                            : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+                        }`}
+                      >
+                        {formatNumber(bet)} 🪙
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5 text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticEffects.tap();
+                        setBetCoinsChoice(halfBudget);
+                      }}
+                      className={`py-1.5 px-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                        betCoinsChoice === halfBudget
+                          ? 'bg-amber-600 text-white border-amber-400 shadow-md'
+                          : 'bg-zinc-900 text-amber-400 border-zinc-800 hover:border-zinc-700'
+                      }`}
+                    >
+                      🌓 50% ({formatNumber(halfBudget)})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticEffects.tap();
+                        setBetCoinsChoice(maxAllInBet);
+                      }}
+                      className={`py-1.5 px-1 rounded-xl text-xs font-black border transition-all cursor-pointer ${
+                        betCoinsChoice === maxAllInBet
+                          ? 'bg-red-600 text-white border-red-400 shadow-md'
+                          : 'bg-zinc-900 text-red-400 border-zinc-800 hover:border-zinc-700'
+                      }`}
+                    >
+                      🔥 ВА-БАНК ({formatNumber(maxAllInBet)})
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Stake info */}
               <div className="grid grid-cols-2 gap-2 mt-3 text-center">
                 <div className="p-2 rounded-xl bg-zinc-900 border border-zinc-800">
                   <span className="text-[10px] text-zinc-400 block font-bold">Выигрыш за победу:</span>
                   <span className="text-xs font-black text-emerald-400">
-                    +{formatNumber(Math.round(activeOpponent.coins * 0.6))} 🪙
+                    +{formatNumber(isMandatoryWeeklyDeal ? Math.round(activeOpponent.coins * 0.6) : betCoinsChoice)} 🪙
                   </span>
                 </div>
                 <div className="p-2 rounded-xl bg-zinc-900 border border-zinc-800">
-                  <span className="text-[10px] text-zinc-400 block font-bold">Штраф за отказ (50%):</span>
+                  <span className="text-[10px] text-zinc-400 block font-bold">
+                    {isMandatoryWeeklyDeal ? 'Штраф за отказ (50%):' : 'Потеря при поражении:'}
+                  </span>
                   <span className="text-xs font-black text-red-400">
-                    -{formatNumber(penaltyAmount)} 🪙
+                    -{formatNumber(isMandatoryWeeklyDeal ? penaltyAmount : Math.min(playerCoins, betCoinsChoice))} 🪙
                   </span>
                 </div>
               </div>

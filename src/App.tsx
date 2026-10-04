@@ -18,9 +18,9 @@ import {
 } from './types/game';
 import { GAME_LEVELS } from './data/levels';
 import { getCardUpgradeCost } from './utils/cardEconomics';
-import { DEFAULT_UPGRADES, DEFAULT_ARTIFACTS, getCurrentWeeklyWheelSkin } from './data/upgrades';
+import { DEFAULT_UPGRADES, DEFAULT_ARTIFACTS, getCurrentWeeklyWheelSkin, generateDailyQuests } from './data/upgrades';
 import { HAMSTER_CARDS, DAILY_COMBO_CARD_IDS, DAILY_COMBO_REWARD_COINS } from './data/cards';
-import { CHARACTER_SKINS, CHARACTER_HATS, HAMSTER_LEAGUES } from './data/skins';
+import { CHARACTER_SKINS, CHARACTER_HATS, HAMSTER_LEAGUES, isHatUnlocked } from './data/skins';
 import { LEVEL_PERKS } from './data/perks';
 import { MEME_ACHIEVEMENTS } from './data/memeAchievements';
 import { evaluateSecretEvents } from './utils/secretEventsChecker';
@@ -224,6 +224,59 @@ export default function App() {
     }, 30000);
     return () => clearInterval(heartbeat);
   }, [saveData, tgUser]);
+
+  // Daily Date & Quests Reset (runs on load and on new calendar day)
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    if (saveData.lastLoginDate !== todayStr) {
+      setSaveData((prev) => ({
+        ...prev,
+        lastLoginDate: todayStr,
+        quests: generateDailyQuests(todayStr, prev.level),
+        fullEnergyBoostsLeft: 6,
+        turboBoostsLeft: 3,
+        lastEnergyBoostDate: todayStr,
+        wheelSpinsToday: 0,
+        claimedWheelSectorIdsToday: [],
+        lastWheelSpinDate: todayStr,
+      }));
+    }
+  }, [saveData.lastLoginDate, saveData.level]);
+
+  // Dynamic Hat & Level Rewards Auto-Unlock Effect
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+
+    let hasNewUnlock = false;
+    const currentUnlockedHats = new Set(saveData.unlockedHatIds || ['hat_none']);
+
+    CHARACTER_HATS.forEach((hat) => {
+      if (!currentUnlockedHats.has(hat.id)) {
+        const canUnlock = isHatUnlocked(
+          hat,
+          saveData.level,
+          saveData.unlockedHatIds,
+          saveData.dealStats?.dealsWon,
+          saveData.cards,
+          saveData.dailyStreak,
+          saveData.unlockedSecretEvents
+        );
+        if (canUnlock) {
+          currentUnlockedHats.add(hat.id);
+          hasNewUnlock = true;
+        }
+      }
+    });
+
+    if (hasNewUnlock) {
+      setSaveData((prev) => ({
+        ...prev,
+        unlockedHatIds: Array.from(currentUnlockedHats),
+      }));
+    }
+  }, [saveData.level, saveData.dealStats?.dealsWon, saveData.cards, saveData.dailyStreak, saveData.unlockedSecretEvents]);
 
   const [isMandatoryWeeklyDeal, setIsMandatoryWeeklyDeal] = useState(false);
   const [onlineRealPlayersCount, setOnlineRealPlayersCount] = useState(1);
@@ -879,7 +932,7 @@ export default function App() {
         userClicks,
         opponentClicks: oppClicks,
         won,
-        coinsChange: won ? coinsWon : -prev.coins,
+        coinsChange: won ? coinsWon : -coinsWon,
         timestamp: Date.now(),
       };
 
@@ -921,7 +974,7 @@ export default function App() {
           }
         : {
             ...prev,
-            coins: 1000,
+            coins: Math.max(0, prev.coins - coinsWon),
             quests: updatedQuests,
             dealHistory: updatedHistory,
             lossDebuff: debuff || undefined,

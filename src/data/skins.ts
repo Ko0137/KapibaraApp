@@ -381,6 +381,37 @@ export const CHARACTER_HATS: CharacterHat[] = [
   },
 ];
 
+/**
+ * Dynamically checks if a hat is unlocked based on player level, deals won, cards, or secret events
+ */
+export function isHatUnlocked(
+  hat: CharacterHat,
+  level: number = 1,
+  unlockedHatIds: string[] = ['hat_none'],
+  dealsWon: number = 0,
+  cards: Record<string, number> = {},
+  dailyStreak: number = 1,
+  unlockedSecretEvents: string[] = []
+): boolean {
+  if (hat.id === 'hat_none') return true;
+  if (unlockedHatIds.includes(hat.id)) return true;
+
+  if (hat.id === 'hat_citrus' && level >= 3) return true;
+  if (hat.id === 'hat_shades' && dealsWon >= 1) return true;
+  if (hat.id === 'hat_cylinder' && ((cards['card_dubai_license'] || 0) > 0 || (cards['card_rolls_royce'] || 0) > 0)) return true;
+  if (hat.id === 'hat_crown' && level >= 40) return true;
+  if (hat.id === 'hat_party' && dailyStreak >= 7) return true;
+  if (hat.id === 'hat_zen_lotus' && (unlockedSecretEvents.includes('sec_zen_moment') || unlockedSecretEvents.length >= 7)) return true;
+  if (hat.id === 'hat_sheikh_keffiyeh' && (unlockedSecretEvents.includes('sec_dubai_tycoon') || unlockedSecretEvents.length >= 11)) return true;
+  if (hat.id === 'hat_deal_crown' && (dealsWon >= 5 || unlockedSecretEvents.includes('sec_deal_shark_5'))) return true;
+  if (hat.id === 'hat_archmage_hood' && (level >= 50 || unlockedSecretEvents.includes('sec_archmage_path'))) return true;
+  if (hat.id === 'hat_demon_horns' && (level >= 60 || unlockedSecretEvents.includes('sec_abyss_chaos'))) return true;
+  if (hat.id === 'hat_galaxy_halo' && (level >= 165 || unlockedSecretEvents.includes('sec_level_165_end'))) return true;
+  if (hat.id === 'hat_cosmic_crown' && (unlockedSecretEvents.length >= 25 || level >= 200)) return true;
+
+  return false;
+}
+
 export interface HamsterLeague {
   id: string;
   name: string;

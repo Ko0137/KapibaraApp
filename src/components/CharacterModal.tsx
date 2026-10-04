@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CharacterSkin, CharacterHat, CustomCapybaraConfig } from '../types/game';
-import { CHARACTER_SKINS, CHARACTER_HATS } from '../data/skins';
+import { CHARACTER_SKINS, CHARACTER_HATS, isHatUnlocked } from '../data/skins';
 import { LEVEL_PERKS } from '../data/perks';
 import { computeCharacterComposite, getCompositeAvatarDisplay } from '../utils/characterComposite';
 import { CharacterFighterVisual } from './CharacterFighterVisual';
@@ -714,7 +714,15 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
         {activeTab === 'hats' && (
           <div className="space-y-2">
             {CHARACTER_HATS.map((hat) => {
-              const isUnlocked = unlockedHatIds.includes(hat.id);
+              const isUnlocked = isHatUnlocked(
+                hat,
+                playerLevel,
+                unlockedHatIds,
+                dealStats.dealsWon,
+                {},
+                1,
+                unlockedSecretEvents
+              );
               const isSelected = selectedHatId === hat.id;
 
               return (

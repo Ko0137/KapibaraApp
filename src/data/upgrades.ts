@@ -356,58 +356,66 @@ export const DAILY_STREAK_REWARDS: DailyStreakDay[] = [
   { day: 7, rewardText: '👑 МЕГА-СУНДУК: 200 000 Монет + 150 Кристаллов!', coins: 200000, gems: 150, boosterMinutes: 120 }
 ];
 
-export const INITIAL_DAILY_QUESTS: DailyQuest[] = [
-  {
-    id: 'quest_taps_100',
-    title: 'Нажать на экран 250 раз',
-    target: 250,
-    current: 0,
-    rewardCoins: 2500,
-    rewardGems: 8,
-    completed: false,
-    type: 'taps'
-  },
-  {
-    id: 'quest_fever_2',
-    title: 'Активировать режим Fever 3 раза',
-    target: 3,
-    current: 0,
-    rewardCoins: 4000,
-    rewardGems: 12,
-    completed: false,
-    type: 'fever'
-  },
-  {
-    id: 'quest_boss_1',
-    title: 'Победить 1 босса эпохи',
-    target: 1,
-    current: 0,
-    rewardCoins: 8000,
-    rewardGems: 20,
-    completed: false,
-    type: 'bosses'
-  },
-  {
-    id: 'quest_upgrades_5',
-    title: 'Купить 5 любых улучшений',
-    target: 5,
-    current: 0,
-    rewardCoins: 3500,
-    rewardGems: 10,
-    completed: false,
-    type: 'upgrades'
-  },
-  {
-    id: 'quest_dumpling_1',
-    title: 'Поймать летящий Золотой Пельмень',
-    target: 1,
-    current: 0,
-    rewardCoins: 6000,
-    rewardGems: 15,
-    completed: false,
-    type: 'golden_dumpling'
-  }
-];
+export function generateDailyQuests(dateStr: string = new Date().toISOString().split('T')[0], playerLevel: number = 1): DailyQuest[] {
+  const levelMult = Math.max(1, Math.min(100, playerLevel));
+  const baseCoin = 5000 * levelMult;
+  const baseGems = 10;
+
+  return [
+    {
+      id: `quest_taps_${dateStr}`,
+      title: `Нажать на экран ${Math.min(2500, 200 + levelMult * 15)} раз`,
+      target: Math.min(2500, 200 + levelMult * 15),
+      current: 0,
+      rewardCoins: Math.round(baseCoin * 1.2),
+      rewardGems: baseGems + 2,
+      completed: false,
+      type: 'taps'
+    },
+    {
+      id: `quest_fever_${dateStr}`,
+      title: 'Активировать режим Лихорадки (Fever) 3 раза',
+      target: 3,
+      current: 0,
+      rewardCoins: Math.round(baseCoin * 1.5),
+      rewardGems: baseGems + 5,
+      completed: false,
+      type: 'fever'
+    },
+    {
+      id: `quest_deals_${dateStr}`,
+      title: 'Сразиться в Сделке Века / Дуэли 2 раза',
+      target: 2,
+      current: 0,
+      rewardCoins: Math.round(baseCoin * 2.5),
+      rewardGems: baseGems + 10,
+      completed: false,
+      type: 'deals'
+    },
+    {
+      id: `quest_upgrades_${dateStr}`,
+      title: 'Купить 5 любых улучшений или карточек',
+      target: 5,
+      current: 0,
+      rewardCoins: Math.round(baseCoin * 1.0),
+      rewardGems: baseGems,
+      completed: false,
+      type: 'upgrades'
+    },
+    {
+      id: `quest_dumpling_${dateStr}`,
+      title: 'Поймать летящий Золотой Пельмень',
+      target: 1,
+      current: 0,
+      rewardCoins: Math.round(baseCoin * 2.0),
+      rewardGems: baseGems + 8,
+      completed: false,
+      type: 'golden_dumpling'
+    }
+  ];
+}
+
+export const INITIAL_DAILY_QUESTS: DailyQuest[] = generateDailyQuests();
 
 export const WEEKLY_WHEEL_SKINS = [
   { id: 'skin_deadpool_capy', name: 'Капибара-Дэдпул', icon: '🦸', desc: 'Безумный наёмник с регенерацией x3' },
